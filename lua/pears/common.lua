@@ -3,6 +3,6 @@ local api = vim.api
 local M = {}
 
 M.namespace = api.nvim_create_namespace("pears")
-M.context_var = "pears"
+M.activated_buf_var = "PearsActive"
 
 return M

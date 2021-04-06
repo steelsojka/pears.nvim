@@ -11,9 +11,12 @@ function M.normalize_pair(key, value)
     entry = { close = entry }
   end
 
+  entry.key = M.get_escaped_key(key)
   entry.padding = entry.padding or 0
   entry.open = entry.open or key
   entry.close = entry.close or ""
+  entry.should_expand = entry.should_expand or function() return true end
+  entry.close_key = M.get_escaped_key(entry.close)
 
   return entry
 end
@@ -65,6 +68,9 @@ function M.get_default_config()
     pair("\"", "\"")
     pair("'", "'")
     pair("`", "`")
+    pair("<", ">")
+    pair("\"\"\"", "\"\"\"")
+    pair("<!--", "-->")
   end)
 end
 

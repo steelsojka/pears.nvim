@@ -2,17 +2,23 @@ local Config = require "pears.config"
 local Common = require "pears.common"
 local Context = require "pears.context"
 local Utils = require "pears.utils"
+local Edit = require "pears.edit"
+local PearTree = require "pears.pear_tree"
+local Input = require "pears.input"
 local api = vim.api
 
 local M = {}
 
-local namespace = Common.namespace
-
 M.config = Config.get_default_config()
-M.contexts_by_buf = {}
+M.contexts_by_buf = Utils.make_buf_table()
+M.inputs_by_buf = Utils.make_buf_table(function(input)
+  input:reset()
+end)
+M._pear_tree = PearTree.new()
 
 function M.setup(config_handler)
   M.config = Config.make_user_config(config_handler)
+  M._pear_tree:from_config(M.config.pairs)
 
   vim.cmd [[au BufEnter * :lua require("pears").attach()]]
 end
@@ -20,35 +26,15 @@ end
 function M.attach(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
-  if M.contexts_by_buf[bufnr] then
+  local _, activated = pcall(api.nvim_buf_get_var, bufnr, Common.activated_buf_var)
+
+  if activated == 1 then
     return
   end
 
+  api.nvim_buf_set_var(bufnr, Common.activated_buf_var, 1)
   M.contexts_by_buf[bufnr] = {}
-
-  api.nvim_buf_attach(bufnr, false, {
-    on_detach = function()
-      M.contexts_by_buf[bufnr] = nil
-    end
-  })
-
-  for key, entry in pairs(M.config.pairs) do
-    api.nvim_buf_set_keymap(
-      bufnr,
-      "i",
-      entry.open,
-      string.format([[<Cmd>lua require("pears").expand_pair("%s", %s)<CR>]], key, bufnr),
-      {noremap = true, silent = true})
-
-    if entry.open ~= entry.close then
-      api.nvim_buf_set_keymap(
-        bufnr,
-        "i",
-        entry.close,
-        string.format([[<Cmd>lua require("pears").expand_pair("%s", %s, true)<CR>]], key, bufnr),
-        {noremap = true, silent = true})
-    end
-  end
+  M.inputs_by_buf[bufnr] = Input.new(bufnr, M._pear_tree, {})
 
   api.nvim_buf_set_keymap(
     bufnr,
@@ -57,7 +43,8 @@ function M.attach(bufnr)
     string.format([[<Cmd>lua require("pears").handle_backspace(%d)<CR>]], bufnr),
       {noremap = true, silent = true})
 
-  vim.cmd(string.format([[au CursorMoved,CursorMovedI <buffer=%d> lua require("pears").check_context(%d)]], bufnr, bufnr))
+  vim.cmd(string.format([[au CursorMoved <buffer=%d> lua require("pears").check_context(%d)]], bufnr, bufnr))
+  vim.cmd(string.format([[au InsertCharPre <buffer=%d> call luaeval("require('pears').handle_input(%d, _A)", v:char)]], bufnr, bufnr))
 end
 
 function M.get_pair_entry(key)
@@ -66,22 +53,6 @@ end
 
 function M.get_buf_contexts(bufnr)
   return M.contexts_by_buf[bufnr] or {}
-end
-
-function M.get_context(bufnr, row, col, key)
-  local last_result
-
-  for _, context in ipairs(M.get_buf_contexts(bufnr)) do
-    if (not key or context.key == key) and context:is_in_range(row, col) then
-      if not last_result
-        or (last_result:is_in_range(unpack(context:start()))
-          and last_result:is_in_range(unpack(context:end_()))) then
-        last_result = context
-      end
-    end
-  end
-
-  return last_result
 end
 
 local function remove_context(bufnr, context)
@@ -102,49 +73,36 @@ local function remove_context(bufnr, context)
 end
 
 function M.check_context(bufnr)
-  local pair_contexts = M.get_buf_contexts(bufnr)
+  local input = M.inputs_by_buf[bufnr]
+  local contexts = input:get_contexts()
 
-  if vim.tbl_isempty(pair_contexts) then
+  if vim.tbl_isempty(contexts) then
     return
   end
 
   local row, col = unpack(api.nvim_win_get_cursor(0))
-  local contexts = {}
 
   row = row - 1
 
-  for _, context in ipairs(pair_contexts) do
-    if context:is_in_range(row, col) then
-      table.insert(contexts, context)
-    else
-      context:destroy()
-    end
-  end
-
-  M.contexts_by_buf[bufnr] = contexts
-end
-
-local function backspace()
-  vim.api.nvim_feedkeys(api.nvim_replace_termcodes("<BS>", true, false, true), "n", true)
-end
-
-local function delete()
-  vim.api.nvim_feedkeys(api.nvim_replace_termcodes("<Del>", true, false, true), "n", true)
+  input:filter_contexts(function(context)
+    return context:is_in_range(row, col)
+  end)
 end
 
 function M.handle_backspace(bufnr)
+  local input = M.inputs_by_buf[bufnr]
   local row, col = unpack(api.nvim_win_get_cursor(0))
-  local context = M.get_context(bufnr, row - 1, col)
+  local context = input:get_context(row - 1, col)
 
   if context and context:is_empty() then
-    backspace()
-    delete()
-    remove_context(bufnr, context)
+    Edit.backspace()
+    Edit.delete()
+    input:remove_context(context)
 
     return
   end
 
-  local before, after = Utils.get_wrapped_chars(bufnr)
+  local before, after = Utils.get_surrounding_chars(bufnr)
 
   -- If we aren't in a matching context, check our characters old school.
   if before and after then
@@ -152,55 +110,22 @@ function M.handle_backspace(bufnr)
     local pair_entry = M.config.pairs[key]
 
     if pair_entry and pair_entry.close == after then
-      backspace()
-      delete()
+      Edit.backspace()
+      Edit.delete()
 
       return
     end
   end
 
-  backspace()
+  Edit.backspace()
 end
 
-function M.expand_pair(key, bufnr, explicit_close)
-  local entry = M.get_pair_entry(key)
-  local row, col = unpack(api.nvim_win_get_cursor(0))
-  local can_close = explicit_close or entry.open == entry.close
-  local is_closing = explicit_close
-  local is_closed = false
+function M.handle_input(bufnr, char)
+  local input = M.inputs_by_buf[bufnr]
 
-  if can_close then
-    local context = M.get_context(bufnr, row - 1, col, key)
+  if not input then return end
 
-    if context then
-      local end_row, end_col = unpack(context:end_())
-
-      if row - 1 == end_row and col == end_col then
-        is_closing = true
-        is_closed = true
-      end
-    end
-  end
-
-  if is_closing then
-    if is_closed then
-      api.nvim_win_set_cursor(0, {row, col + #entry.close})
-    else
-      api.nvim_put({entry.close}, "c", false, true)
-    end
-  else
-    local pad_string = string.rep(" ", entry.padding)
-    local open = entry.open .. pad_string
-    local close = pad_string .. entry.close
-
-    api.nvim_put({open .. close}, "c", false, false)
-    api.nvim_win_set_cursor(0, {row, col + #open})
-
-    local contexts = M.get_buf_contexts(bufnr)
-    local context = Context.new(bufnr, key, {row - 1, col, row - 1, col + #open})
-
-    table.insert(contexts, context)
-  end
+  input:input(char)
 end
 
 return M

@@ -14,15 +14,10 @@ function Input.new(bufnr, pear_tree, opts)
     tree = pear_tree,
     contexts = {},
     current_context = nil,
-    current_branch = pear_tree,
-    on_match = opts.on_match or Utils.noop
+    current_branch = pear_tree
   }
 
   return setmetatable(self, {__index = Input})
-end
-
-function Input:_on_match(leaf)
-  self.on_match(leaf, context, self)
 end
 
 function Input:get_context(row, col, key)
@@ -41,22 +36,6 @@ function Input:get_context(row, col, key)
   return last_result
 end
 
-function Input:filter_contexts(predicate)
-  local contexts = {}
-
-  for _, context in ipairs(self.contexts) do
-    local keep = predicate(context)
-
-    if keep then
-      table.insert(contexts, context)
-    else
-      context:destroy()
-    end
-  end
-
-  self.contexts = contexts
-end
-
 function Input:get_contexts()
   return self.contexts
 end
@@ -73,11 +52,16 @@ function Input:remove_context(context)
   end
 end
 
-function Input:_replace_active_context(leaf)
+function Input:clear_contexts()
+  for _, context in ipairs(self.contexts) do
+    context:destroy()
+  end
+
+  self.contexts = {}
 end
 
-function Input:_make_context(leaf, start_range, end_range)
-  return Context.new(self.bufnr, leaf.key, start_range, end_range)
+function Input:_make_context(leaf, start, end_)
+  return Context.new(self.bufnr, leaf.key, Context.combine_range(start, end_))
 end
 
 function Input:input(char)
@@ -136,8 +120,7 @@ function Input:input(char)
 
   -- If this branch has a leaf pair, we want to expand it.
   if next_branch.leaf then
-    local start_range
-    local end_range
+    local start
     local leaf = next_branch.leaf
 
     -- If there is a current context that we have previously expanded, we
@@ -147,28 +130,29 @@ function Input:input(char)
     if self.current_context then
       local prev_context = self.current_context
 
-      start_range = prev_context:start_range()
+      start = prev_context:start()
 
-      local _end_range = prev_context:end_range()
-
-      -- Delete the previous leafs end closer range.
-      queue:add(Edit.delete, {(_end_range[2] or 0) - (_end_range[4] or 0) + 1})
+      queue:add(function(_start, _end_col, _leaf)
+        api.nvim_win_set_cursor(0, {_start[1] + 1, _start[2]})
+        Edit.delete(_end_col - _start[2] + 1)
+        Edit.insert(_leaf.open)
+      end, {start, col, leaf})
 
       self:remove_context(prev_context)
     else
       -- If we don't have a current_context then this is a new sequence,
       -- so start the range at the cursor.
-      start_range = {row - 1, col, row - 1, col}
+      start = {row - 1, col}
     end
 
-    local end_range = {row - 1, col + 1, row - 1, col + #leaf.close}
+    local end_ = {row - 1, col + #leaf.close}
 
     -- Insert the closer
     queue:add(Edit.insert, {leaf.close})
     -- Reset the cursor position
     queue:add(Edit.left, {#leaf.close})
 
-    local new_context = self:_make_context(leaf, start_range, end_range)
+    local new_context = self:_make_context(leaf, start, end_)
 
     -- Queue the context to add extmarks... if this fails we don't want to throw an error.
     -- Instead just remove the context and move on.

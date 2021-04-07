@@ -10,8 +10,9 @@ function M.make_feedkey(key)
   return function(times)
     times = times or 1
 
-    for i = 1, times, 1 do
+    while times > 0 do
       api.nvim_feedkeys(api.nvim_replace_termcodes(key, true, false, true), "n", true)
+      times = times - 1
     end
   end
 end

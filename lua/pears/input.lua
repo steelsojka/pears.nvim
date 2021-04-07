@@ -72,6 +72,15 @@ function Input:input(char)
   -- or just entering regular input.
   local next_branch = self.current_branch and self.current_branch.branches[key]
 
+  -- If we shouldn't expand based on the callback then reset and abort.
+  if next_branch
+    and next_branch.leaf
+    and not next_branch.leaf.should_expand(self.bufnr, next_branch.leaf, self)
+  then
+    self:reset()
+    return
+  end
+
   -- If this is a closer, check if we are part of a context with this entry.
   if self.tree.closers[key] then
     local closer_entry = self.tree.closers[key]
@@ -112,16 +121,14 @@ function Input:input(char)
   -- Queue of edit commands that we will execute when nvim is ready.
   local queue = Edit.Queue.new()
 
-  if not row or not col then
-    row, col = unpack(api.nvim_win_get_cursor(0))
-  end
-
-  local has_branches = not vim.tbl_isempty(next_branch.branches)
-
   -- If this branch has a leaf pair, we want to expand it.
   if next_branch.leaf then
     local start
     local leaf = next_branch.leaf
+
+    if not row or not col then
+      row, col = unpack(api.nvim_win_get_cursor(0))
+    end
 
     -- If there is a current context that we have previously expanded, we
     -- want to remove the previous leafs closer and use this leafs closer.
@@ -132,11 +139,16 @@ function Input:input(char)
 
       start = prev_context:start()
 
+      local _end = prev_context:end_()
+
       queue:add(function(_start, _end_col, _leaf)
+        -- Set the cursor back to the beginning of the context area
         api.nvim_win_set_cursor(0, {_start[1] + 1, _start[2]})
+        -- Delete all text to either the cursor or end context area (inclusive), whichever is larger
         Edit.delete(_end_col - _start[2] + 1)
+        -- Insert the new open
         Edit.insert(_leaf.open)
-      end, {start, col, leaf})
+      end, {start, math.max(col, _end[2] + 1), leaf})
 
       self:remove_context(prev_context)
     else
@@ -160,7 +172,6 @@ function Input:input(char)
       local success = pcall(function() new_context:mark() end)
 
       if not success then
-        print(vim.inspect(new_context))
         self:remove_context(new_context)
       end
     end)
@@ -168,12 +179,12 @@ function Input:input(char)
     table.insert(self.contexts, new_context)
 
     -- If there are more branches after this leaf then track it for additional input.
-    if has_branches then
+    if not vim.tbl_isempty(next_branch.branches) then
       self.current_context = new_context
     end
   end
 
-  if has_branches then
+  if not vim.tbl_isempty(next_branch.branches) then
     self.current_branch = next_branch
   else
     -- Reset everything if there are no more branches.

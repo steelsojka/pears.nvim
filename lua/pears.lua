@@ -38,9 +38,14 @@ function M.attach(bufnr)
     "i",
     "<BS>",
     string.format([[<Cmd>lua require("pears").handle_backspace(%d)<CR>]], bufnr),
-      {noremap = true, silent = true})
+    {noremap = true, silent = true})
 
-  -- TODO: Handle <CR>
+  api.nvim_buf_set_keymap(
+    bufnr,
+    "i",
+    "<CR>",
+    string.format([[<Cmd>lua require("pears").handle_return(%d)<CR>]], bufnr),
+    {noremap = true, silent = true})
 
   vim.cmd(string.format([[au InsertLeave <buffer=%d> lua require("pears").on_insert_leave(%d)]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertCharPre <buffer=%d> call luaeval("require('pears').handle_input(%d, _A)", v:char)]], bufnr, bufnr))
@@ -66,6 +71,26 @@ function M.handle_backspace(bufnr)
   end
 
   Edit.backspace()
+end
+
+function M.handle_return(bufnr)
+  local before = Utils.get_surrounding_chars(bufnr)
+
+  if before then
+    local key = Config.get_escaped_key(before)
+    local leaf = M.config.pairs[key]
+
+    if leaf then
+      local _, after = Utils.get_surrounding_chars(bufnr, #leaf.close)
+
+      if after == leaf.close then
+        leaf.handle_return(bufnr)
+        return
+      end
+    end
+  end
+
+  Edit.enter()
 end
 
 function M.on_insert_leave(bufnr)

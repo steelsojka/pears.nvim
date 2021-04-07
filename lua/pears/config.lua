@@ -1,3 +1,6 @@
+local Utils = require "pears.utils"
+local Edit = require "pears.edit"
+
 local M = {}
 
 function M.get_escaped_key(key)
@@ -13,6 +16,7 @@ function M.normalize_pair(key, value)
 
   entry.key = M.get_escaped_key(key)
   entry.padding = entry.padding or 0
+  entry.handle_return = entry.handle_return or Edit.return_and_indent
   entry.open = entry.open or key
   entry.close = entry.close or ""
   entry.should_expand = entry.should_expand or function() return true end
@@ -27,7 +31,7 @@ function M.exec_config_handler(handler, config)
   }
 
   if handler then
-    local fenv = setmetatable({
+    local conf = setmetatable({
       pair = function(key, value, overwrite)
         local k_key = M.get_escaped_key(key)
 
@@ -53,24 +57,27 @@ function M.exec_config_handler(handler, config)
       end
     })
 
-    setfenv(handler, fenv)
-    handler()
+    handler(conf)
   end
 
   return config
 end
 
 function M.get_default_config()
-  return M.exec_config_handler(function()
-    pair("{", "}")
-    pair("[", "]")
-    pair("(", ")")
-    pair("\"", "\"")
-    pair("'", "'")
-    pair("`", "`")
-    pair("<", ">")
-    pair("\"\"\"", "\"\"\"")
-    pair("<!--", "-->")
+  return M.exec_config_handler(function(c)
+    c.pair("{", "}")
+    c.pair("[", "]")
+    c.pair("(", ")")
+    c.pair("\"", "\"")
+    c.pair("'", {
+      close = "'",
+      should_expand = Utils.negate(Utils.has_leading_alpha)
+    })
+    c.pair("`", "`")
+    c.pair("<", ">")
+    c.pair("\"\"\"", "\"\"\"")
+    c.pair("<!--", "-->")
+    c.pair("<?", "?>")
   end)
 end
 

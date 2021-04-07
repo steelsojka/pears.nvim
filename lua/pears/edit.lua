@@ -1,3 +1,4 @@
+local Utils = require "pears.utils"
 local api = vim.api
 
 local M = {}
@@ -21,6 +22,8 @@ M.left = M.make_feedkey("<Left>")
 M.right = M.make_feedkey("<Right>")
 M.delete = M.make_feedkey("<Del>")
 M.backspace = M.make_feedkey("<BS>")
+M.enter = M.make_feedkey("<CR>")
+M.return_and_indent = Utils.unary(M.make_feedkey("<CR><C-c>O"))
 
 M.Queue = {}
 

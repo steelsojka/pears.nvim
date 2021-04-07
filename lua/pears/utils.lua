@@ -2,9 +2,6 @@ local api = vim.api
 
 local M = {}
 
-local buf_table_mt = {
-}
-
 function M.is_in_range(row, col, range)
   local start_row, start_col, end_row, end_col  = unpack(range)
 
@@ -69,6 +66,20 @@ function M.pull(list, item, comparer)
   table.remove(list, index)
 
   return removed
+end
+
+function M.has_leading_alpha(bufnr)
+  local before = M.get_surrounding_chars(bufnr, 1)
+
+  return string.match(before, "[a-zA-Z]")
+end
+
+function M.negate(fn)
+  return function(...) return not fn(...) end
+end
+
+function M.unary(fn)
+  return function() fn() end
 end
 
 function M.constant(value)

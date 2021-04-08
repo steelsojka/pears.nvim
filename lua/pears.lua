@@ -12,7 +12,7 @@ M.config = Config.get_default_config()
 M.inputs_by_buf = Utils.make_buf_table(function(input)
   input:reset()
 end)
-M._pear_tree = PearTree.new()
+M._pear_tree = PearTree.new({})
 
 function M.setup(config_handler)
   M.config = Config.make_user_config(config_handler)
@@ -56,15 +56,18 @@ function M.get_pair_entry(key)
 end
 
 function M.handle_backspace(bufnr)
-  local before, after = Utils.get_surrounding_chars(bufnr)
+  local before, after = Utils.get_surrounding_chars(
+    bufnr,
+    M._pear_tree.reverse_openers.max_len,
+    M._pear_tree.closers.max_len)
 
   if before and after then
-    local key = Config.get_escaped_key(before)
-    local pair_entry = M.config.pairs[key]
+    local open_leaf = M._pear_tree.reverse_openers:query(string.reverse(before))
+    local close_leaf = M._pear_tree.closers:query(after)
 
-    if pair_entry and pair_entry.close == after then
-      Edit.backspace()
-      Edit.delete()
+    if open_leaf and close_leaf and open_leaf.key == close_leaf.key then
+      Edit.backspace(#open_leaf.open)
+      Edit.delete(#close_leaf.close)
 
       return
     end

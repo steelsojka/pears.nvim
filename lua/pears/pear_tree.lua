@@ -1,48 +1,64 @@
 local PearTree = {}
+local Trie = {}
 
-function PearTree.new()
-  local self = {
-    leaf = nil,
-    branches = {},
-    openers = {},
-    closers = {}
-  }
+function Trie.new(dictionary, get_key)
+  local self = setmetatable({get_key = get_key}, {__index = Trie})
 
-  return setmetatable(self, {__index = PearTree})
+  self.branches, self.max_len = self:make(dictionary)
+
+  return self
 end
 
-function PearTree.make_key(str)
+function Trie.make_key(str)
   return 'k' .. string.byte(str)
 end
 
-function PearTree.make_char(key)
+function Trie.make_char(key)
   return string.char(string.sub(key, 2, -1))
 end
 
-function PearTree:get_openers()
-  return self.openers
+function Trie:query(chars)
+  local last = nil
+  local last_branch = self.branches
+
+  chars = chars or ""
+
+  for i = 1, #chars do
+    local char = string.sub(chars, i, i)
+    local key = Trie.make_key(char)
+    local item = last_branch[key]
+
+    if item then
+      if item.leaf then
+        last = item.leaf
+      end
+
+      if item.branches then
+        last_branch = item.branches
+      else
+        break
+      end
+    else
+      break
+    end
+  end
+
+  return last, i
 end
 
-function PearTree:from_config(pair_config_map)
-  self.branches = {}
-  self.openers = {}
-  self.closers = {}
+function Trie:make(dictionary)
+  local branches = {}
+  local max_len = 0
 
-  local seen_openers = {}
-
-  for key, config in pairs(pair_config_map) do
-    local current_list = self.branches
+  for key, value in pairs(dictionary) do
+    local current_list = branches
     local current_branch
+    local key_string = self.get_key(value)
+    local len = 0
 
-    self.closers[config.close_key] = config
-
-    for char in string.gmatch(config.open, ".") do
-      local key = PearTree.make_key(char)
-
-      if not seen_openers[key] then
-        table.insert(self.openers, char)
-        seen_openers[key] = true
-      end
+    for char in string.gmatch(key_string, ".") do
+      local key = Trie.make_key(char)
+      len = len + 1
 
       if not current_list[key] then
         current_list[key] = {
@@ -52,14 +68,49 @@ function PearTree:from_config(pair_config_map)
         }
       end
 
+      if len > max_len then
+        max_len = len
+      end
+
       current_branch = current_list[key]
       current_list = current_branch.branches
     end
 
     if current_branch then
-      current_branch.leaf = config
+      current_branch.leaf = value
     end
   end
+
+  return branches, max_len
+end
+
+function PearTree.new(config)
+  local self = setmetatable({}, {__index = PearTree})
+
+  self:from_config(config)
+
+  return self
+end
+
+PearTree.make_key = Trie.make_key
+PearTree.make_char = Trie.make_char
+
+function PearTree:from_config(pair_config_map)
+  self.openers = Trie.new(pair_config_map, function(item)
+    return item.open
+  end)
+  self.reverse_openers = Trie.new(pair_config_map, function(item)
+    return string.reverse(item.open)
+  end)
+  self.closers = Trie.new(pair_config_map, function(item)
+    return item.close
+  end)
+  self.reverse_closers = Trie.new(pair_config_map, function(item)
+    return string.reverse(item.close)
+  end)
+
+  self.max_opener_len = self.openers.max_len
+  self.max_closer_len = self.closers.max_len
 end
 
 return PearTree

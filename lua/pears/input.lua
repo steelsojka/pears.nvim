@@ -14,7 +14,7 @@ function Input.new(bufnr, pear_tree, opts)
     tree = pear_tree,
     contexts = {},
     current_context = nil,
-    current_branch = pear_tree
+    current_branch = pear_tree.openers
   }
 
   return setmetatable(self, {__index = Input})
@@ -81,10 +81,10 @@ function Input:input(char)
     return
   end
 
-  -- If this is a closer, check if we are part of a context with this entry.
-  if self.tree.closers[key] then
-    local closer_entry = self.tree.closers[key]
+  local closer_entry = self.tree.closers:query(char)
 
+  -- If this is a closer (single-char), check if we are part of a context with this entry.
+  if closer_entry then
     row, col = unpack(api.nvim_win_get_cursor(0))
 
     local containing_context = self:get_context(row - 1, col, closer_entry.key)
@@ -196,7 +196,7 @@ function Input:input(char)
 end
 
 function Input:reset()
-  self.current_branch = self.tree
+  self.current_branch = self.tree.openers
   self.current_context = nil
 end
 

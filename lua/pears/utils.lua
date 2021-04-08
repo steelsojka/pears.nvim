@@ -9,15 +9,16 @@ function M.is_in_range(row, col, range)
     and (row < end_row or (row == end_row and col <= end_col))
 end
 
-function M.get_surrounding_chars(bufnr, count)
-  count = count or 1
+function M.get_surrounding_chars(bufnr, lead_count, tail_count)
+  lead_count = lead_count or 1
+  tail_count = tail_count or lead_count
 
   local row, col = unpack(api.nvim_win_get_cursor(0))
   local line = api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1]
 
   if line then
-    local before = string.sub(line, col, col + count - 1)
-    local after = string.sub(line, col + count, col + count)
+    local before = string.sub(line, math.max(col - lead_count + 1, 0), col)
+    local after = string.sub(line, col + 1, col + tail_count)
 
     return before, after
   end

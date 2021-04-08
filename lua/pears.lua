@@ -33,19 +33,25 @@ function M.attach(bufnr)
   api.nvim_buf_set_var(bufnr, Common.activated_buf_var, 1)
   M.inputs_by_buf[bufnr] = Input.new(bufnr, M._pear_tree, {})
 
-  api.nvim_buf_set_keymap(
-    bufnr,
-    "i",
-    "<BS>",
-    string.format([[<Cmd>lua require("pears").handle_backspace(%d)<CR>]], bufnr),
-    {noremap = true, silent = true})
+  if M.config.remove_pair_on_inner_backspace
+    or M.config.remove_pair_on_outer_backspace
+  then
+    api.nvim_buf_set_keymap(
+      bufnr,
+      "i",
+      "<BS>",
+      string.format([[<Cmd>lua require("pears").handle_backspace(%d)<CR>]], bufnr),
+      {silent = true})
+  end
 
-  api.nvim_buf_set_keymap(
-    bufnr,
-    "i",
-    "<CR>",
-    string.format([[<Cmd>lua require("pears").handle_return(%d)<CR>]], bufnr),
-    {noremap = true, silent = true})
+  if M.config.expand_on_return then
+    api.nvim_buf_set_keymap(
+      bufnr,
+      "i",
+      "<CR>",
+      string.format([[<Cmd>lua require("pears").handle_return(%d)<CR>]], bufnr),
+      {silent = true})
+  end
 
   vim.cmd(string.format([[au InsertLeave <buffer=%d> lua require("pears").on_insert_leave(%d)]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertCharPre <buffer=%d> call luaeval("require('pears').handle_input(%d, _A)", v:char)]], bufnr, bufnr))
@@ -56,20 +62,31 @@ function M.get_pair_entry(key)
 end
 
 function M.handle_backspace(bufnr)
-  local before, after = Utils.get_surrounding_chars(
-    bufnr,
-    M._pear_tree.reverse_openers.max_len,
-    M._pear_tree.closers.max_len)
+  if M.config.remove_pair_on_inner_backspace then
+    local open_leaf, close_leaf = M._pear_tree:get_wrapping_pair_at(bufnr)
 
-  if before and after then
-    local open_leaf = M._pear_tree.reverse_openers:query(string.reverse(before))
-    local close_leaf = M._pear_tree.closers:query(after)
-
-    if open_leaf and close_leaf and open_leaf.key == close_leaf.key then
+    -- Remove the enclosed pair
+    -- {|} -> |
+    if open_leaf and close_leaf and M.config.remove_pair_on_inner_backspace then
       Edit.backspace(#open_leaf.open)
       Edit.delete(#close_leaf.close)
-
       return
+    end
+  end
+
+  if M.config.remove_pair_on_outer_backspace then
+    local cursor = Utils.get_cursor()
+
+    for i = 1, M._pear_tree.max_closer_len do
+      local open_leaf, close_leaf = M._pear_tree:get_wrapping_pair_at(bufnr, {cursor[1], cursor[2] - i})
+
+      -- Remove from the end of the pair
+      -- NOTE: Does not support nested pairs
+      -- {}| -> |
+      if open_leaf and close_leaf then
+        Edit.backspace(#open_leaf.open + #close_leaf.close)
+        return
+      end
     end
   end
 
@@ -77,6 +94,8 @@ function M.handle_backspace(bufnr)
 end
 
 function M.handle_return(bufnr)
+  bufnr = bufnr or api.nvim_get_current_buf()
+
   local before = Utils.get_surrounding_chars(bufnr)
 
   if before then
@@ -84,7 +103,7 @@ function M.handle_return(bufnr)
     local leaf = M.config.pairs[key]
 
     if leaf then
-      local _, after = Utils.get_surrounding_chars(bufnr, #leaf.close)
+      local _, after = Utils.get_surrounding_chars(bufnr, nil, #leaf.close)
 
       if after == leaf.close then
         leaf.handle_return(bufnr)

@@ -1,3 +1,5 @@
+local Utils = require "pears.utils"
+
 local PearTree = {}
 local Trie = {}
 
@@ -111,6 +113,18 @@ function PearTree:from_config(pair_config_map)
 
   self.max_opener_len = self.openers.max_len
   self.max_closer_len = self.closers.max_len
+end
+
+function PearTree:get_wrapping_pair_at(bufnr, position)
+  local before, after = Utils.get_surrounding_chars(bufnr, position, self.reverse_openers.max_len, self.closers.max_len)
+  local opener = self.reverse_openers:query(string.reverse(before))
+  local closer = self.closers:query(after)
+
+  if opener and closer and opener.key == closer.key then
+    return opener, closer
+  end
+
+  return nil
 end
 
 return PearTree

@@ -2,6 +2,12 @@ local api = vim.api
 
 local M = {}
 
+function M.get_cursor()
+  local row, col = unpack(api.nvim_win_get_cursor(0))
+
+  return {row - 1, col}
+end
+
 function M.is_in_range(row, col, range)
   local start_row, start_col, end_row, end_col  = unpack(range)
 
@@ -9,12 +15,12 @@ function M.is_in_range(row, col, range)
     and (row < end_row or (row == end_row and col <= end_col))
 end
 
-function M.get_surrounding_chars(bufnr, lead_count, tail_count)
+function M.get_surrounding_chars(bufnr, position, lead_count, tail_count)
   lead_count = lead_count or 1
   tail_count = tail_count or lead_count
 
-  local row, col = unpack(api.nvim_win_get_cursor(0))
-  local line = api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1]
+  local row, col = unpack(position or M.get_cursor())
+  local line = api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
 
   if line then
     local before = string.sub(line, math.max(col - lead_count + 1, 0), col)
@@ -70,7 +76,7 @@ function M.pull(list, item, comparer)
 end
 
 function M.has_leading_alpha(bufnr)
-  local before = M.get_surrounding_chars(bufnr, 1)
+  local before = M.get_surrounding_chars(bufnr, nil, 1)
 
   return string.match(before, "[a-zA-Z]")
 end

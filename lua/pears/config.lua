@@ -78,6 +78,10 @@ function M.get_default_config()
     c.pair("\"\"\"", "\"\"\"")
     c.pair("<!--", "-->")
     c.pair("<?", "?>")
+
+    c.remove_pair_on_outer_backspace(true)
+    c.remove_pair_on_inner_backspace(true)
+    c.expand_on_return(true)
   end)
 end
 

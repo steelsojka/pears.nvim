@@ -93,7 +93,7 @@ function Input:input(char)
       -- If we are in a corresponding context and the next char is a closer...
       -- then don't insert anything and move the cursor right one.
       -- NOTE: This only works for single character closers.
-      local _, next_char = Utils.get_surrounding_chars(self.bufnr, 1)
+      local _, next_char = Utils.get_surrounding_chars(self.bufnr, nil, 1)
 
       if next_char == closer_entry.close then
         -- If there is also another branch with this key, we want to make

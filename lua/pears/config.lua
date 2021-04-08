@@ -7,12 +7,12 @@ function M.get_escaped_key(key)
   return "k" .. string.gsub(key, ".", string.byte)
 end
 
-function M.normalize_pair(key, value)
-  local entry = value
+function M.pair_to_table(value)
+  return type(value) == "table" and value or {close = value}
+end
 
-  if type(entry) == "string" then
-    entry = { close = entry }
-  end
+function M.normalize_pair(key, value)
+  local entry = M.pair_to_table(value)
 
   entry.key = M.get_escaped_key(key)
   entry.padding = entry.padding or 0
@@ -38,12 +38,12 @@ function M.exec_config_handler(handler, config)
         if not value then
           config.pairs[k_key] = nil
         else
-          local norm_value = M.normalize_pair(key, value)
+          local norm_value = M.pair_to_table(value)
 
           if overwrite then
-            config.pairs[k_key] = norm_value
+            config.pairs[k_key] = M.normalize_pair(key, norm_value)
           else
-            config.pairs[k_key] = vim.tbl_extend("force", config.pairs[k_key] or {}, norm_value)
+            config.pairs[k_key] = M.normalize_pair(key, vim.tbl_extend("force", config.pairs[k_key] or {}, norm_value))
           end
         end
       end

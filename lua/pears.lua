@@ -83,7 +83,7 @@ function M.handle_backspace(bufnr)
       -- Remove from the end of the pair
       -- NOTE: Does not support nested pairs
       -- {}| -> |
-      if open_leaf and close_leaf then
+      if open_leaf and close_leaf and #close_leaf.close == i then
         Edit.backspace(#open_leaf.open + #close_leaf.close)
         input:reset()
 

@@ -15,7 +15,6 @@ function M.normalize_pair(key, value)
   local entry = M.pair_to_table(value)
 
   entry.key = M.get_escaped_key(key)
-  entry.padding = entry.padding or 0
   entry.handle_return = entry.handle_return or Edit.return_and_indent
   entry.open = entry.open or key
   entry.close = entry.close or ""
@@ -77,6 +76,7 @@ function M.get_default_config()
     c.pair("<", ">")
     c.pair("\"\"\"", "\"\"\"")
     c.pair("<!--", "-->")
+    c.pair("```", "```")
     c.pair("<?", "?>")
 
     c.remove_pair_on_outer_backspace(true)

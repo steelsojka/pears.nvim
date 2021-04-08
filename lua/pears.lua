@@ -44,7 +44,7 @@ function M.attach(bufnr)
       {silent = true})
   end
 
-  if M.config.expand_on_return then
+  if M.config.expand_on_enter then
     api.nvim_buf_set_keymap(
       bufnr,
       "i",
@@ -94,6 +94,16 @@ function M.handle_backspace(bufnr)
 end
 
 function M.handle_return(bufnr)
+  if type(M.config.on_enter) == "function" then
+    M.config.on_enter(function()
+      M._handle_return(bufnr)
+    end, Edit.enter)
+  else
+    M._handle_return(bufnr)
+  end
+end
+
+function M._handle_return(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
   local before = Utils.get_surrounding_chars(bufnr)

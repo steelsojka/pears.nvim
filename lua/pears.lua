@@ -33,16 +33,12 @@ function M.attach(bufnr)
   api.nvim_buf_set_var(bufnr, Common.activated_buf_var, 1)
   M.inputs_by_buf[bufnr] = Input.new(bufnr, M._pear_tree, {})
 
-  if M.config.remove_pair_on_inner_backspace
-    or M.config.remove_pair_on_outer_backspace
-  then
-    api.nvim_buf_set_keymap(
-      bufnr,
-      "i",
-      "<BS>",
-      string.format([[<Cmd>lua require("pears").handle_backspace(%d)<CR>]], bufnr),
-      {silent = true})
-  end
+  api.nvim_buf_set_keymap(
+    bufnr,
+    "i",
+    "<BS>",
+    string.format([[<Cmd>lua require("pears").handle_backspace(%d)<CR>]], bufnr),
+    {silent = true})
 
   if M.config.expand_on_enter then
     api.nvim_buf_set_keymap(
@@ -62,6 +58,8 @@ function M.get_pair_entry(key)
 end
 
 function M.handle_backspace(bufnr)
+  local input = M.inputs_by_buf[bufnr]
+
   if M.config.remove_pair_on_inner_backspace then
     local open_leaf, close_leaf = M._pear_tree:get_wrapping_pair_at(bufnr)
 
@@ -70,6 +68,8 @@ function M.handle_backspace(bufnr)
     if open_leaf and close_leaf and M.config.remove_pair_on_inner_backspace then
       Edit.backspace(#open_leaf.open)
       Edit.delete(#close_leaf.close)
+      input:reset()
+
       return
     end
   end
@@ -85,11 +85,14 @@ function M.handle_backspace(bufnr)
       -- {}| -> |
       if open_leaf and close_leaf then
         Edit.backspace(#open_leaf.open + #close_leaf.close)
+        input:reset()
+
         return
       end
     end
   end
 
+  input:step_back()
   Edit.backspace()
 end
 

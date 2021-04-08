@@ -64,6 +64,14 @@ function Input:_make_context(leaf, start, end_)
   return Context.new(self.bufnr, leaf.key, Context.combine_range(start, end_))
 end
 
+function Input:step_back()
+  if self.current_branch and self.current_branch.parent then
+    self.current_branch = self.current_branch.parent
+  else
+    self:reset()
+  end
+end
+
 function Input:input(char)
   local key = PearTree.make_key(char)
   local row, col
@@ -71,15 +79,6 @@ function Input:input(char)
   -- Next branch in the tree. If it's nil then we either are entering a new sequence
   -- or just entering regular input.
   local next_branch = self.current_branch and self.current_branch.branches[key]
-
-  -- If we shouldn't expand based on the callback then reset and abort.
-  if next_branch
-    and next_branch.leaf
-    and not next_branch.leaf.should_expand(self.bufnr, next_branch.leaf, self)
-  then
-    self:reset()
-    return
-  end
 
   local closer_entry = self.tree.closers:query(char)
 
@@ -107,6 +106,15 @@ function Input:input(char)
         return
       end
     end
+  end
+
+  -- If we shouldn't expand based on the callback then reset and abort.
+  if next_branch
+    and next_branch.leaf
+    and not next_branch.leaf.should_expand(self.bufnr, next_branch.leaf, self)
+  then
+    self:reset()
+    return
   end
 
   -- This would mean a new sequence, so we check the char against the root tree.

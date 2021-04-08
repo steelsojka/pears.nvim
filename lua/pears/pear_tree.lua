@@ -66,6 +66,7 @@ function Trie:make(dictionary)
         current_list[key] = {
           leaf = nil,
           char = char,
+          parent = current_branch,
           branches = {}
         }
       end

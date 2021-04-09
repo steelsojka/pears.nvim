@@ -4,7 +4,7 @@ local PearTree = {}
 local Trie = {}
 
 function Trie.new(dictionary, get_key)
-  local self = setmetatable({get_key = get_key}, {__index = Trie})
+  local self = setmetatable({get_key = get_key, unpack(Trie.new_branch())}, {__index = Trie})
 
   self.branches, self.max_len = self:make(dictionary)
 
@@ -51,35 +51,64 @@ function Trie:query(chars)
   return last, index
 end
 
+function Trie.new_branch(char, parent, is_wildcard)
+  return {
+    leaf = nil,
+    char = char,
+    wildcard = nil,
+    parent = parent,
+    is_wildcard = is_wildcard,
+    branches = {}
+  }
+end
+
 function Trie:make(dictionary)
   local branches = {}
   local max_len = 0
 
   for _, value in pairs(dictionary) do
+    value = vim.tbl_extend("force", {}, value)
+
     local current_list = branches
     local current_branch
     local key_string = self.get_key(value)
     local len = 0
+    local is_escaped = false
+    local is_wildcard = false
+    local wildcard = nil
 
     for char in string.gmatch(key_string, ".") do
-      local key = Trie.make_key(char)
-      len = len + 1
+      if char == "\\" and not is_escaped then
+        is_escaped = true
+      else
+        local key = Trie.make_key(char)
 
-      if not current_list[key] then
-        current_list[key] = {
-          leaf = nil,
-          char = char,
-          parent = current_branch,
-          branches = {}
-        }
+        len = len + 1
+
+        if char == "*" and not is_escaped then
+          current_branch.wildcard = value
+          wildcard = value
+          wildcard.next_chars = {}
+          is_wildcard = true
+        else
+          if not current_list[key] then
+            current_list[key] = Trie.new_branch(char, current_branch, is_wildcard)
+          end
+
+          if wildcard then
+            table.insert(wildcard.next_chars, char)
+          end
+
+          if len > max_len then
+            max_len = len
+          end
+
+          current_branch = current_list[key]
+          current_list = current_branch.branches
+        end
+
+        is_escaped = false
       end
-
-      if len > max_len then
-        max_len = len
-      end
-
-      current_branch = current_list[key]
-      current_list = current_branch.branches
     end
 
     if current_branch then
@@ -117,6 +146,7 @@ function PearTree:from_config(pair_config_map)
 
   self.max_opener_len = self.openers.max_len
   self.max_closer_len = self.closers.max_len
+  print(vim.inspect(self.openers))
 end
 
 function PearTree:get_wrapping_pair_at(bufnr, position)

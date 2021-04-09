@@ -13,6 +13,7 @@ function Input.new(bufnr, pear_tree, opts)
     bufnr = bufnr,
     tree = pear_tree,
     contexts = {},
+    wildcard_start = nil,
     current_context = nil,
     current_branch = pear_tree.openers
   }
@@ -74,7 +75,7 @@ end
 
 function Input:input(char)
   local key = PearTree.make_key(char)
-  local row, col
+  local row, col = unpack(api.nvim_win_get_cursor(0))
 
   -- Next branch in the tree. If it's nil then we either are entering a new sequence
   -- or just entering regular input.
@@ -84,8 +85,6 @@ function Input:input(char)
 
   -- If this is a closer (single-char), check if we are part of a context with this entry.
   if closer_entry then
-    row, col = unpack(api.nvim_win_get_cursor(0))
-
     local containing_context = self:get_context(row - 1, col, closer_entry.key)
 
     if containing_context then
@@ -95,17 +94,37 @@ function Input:input(char)
       local _, next_char = Utils.get_surrounding_chars(self.bufnr, nil, 1)
 
       if next_char == closer_entry.close then
-        -- If there is also another branch with this key, we want to make
-        -- sure to move the current branch pointer down.
-        if next_branch then
-          self.current_branch = next_branch
+        -- Don't insert any char
+        vim.cmd [[let v:char = ""]]
+
+        if self.current_wildcard and self:should_expand_wildcard(next_char) then
+          self:expand_wildcard(next_char, 1)
+          self:reset()
+        else
+          -- If there is also another branch with this key, we want to make
+          -- sure to move the current branch pointer down.
+          if next_branch then
+            self.current_branch = next_branch
+          end
+
+          vim.schedule(Edit.right)
         end
 
-        vim.cmd [[let v:char = ""]]
-        vim.schedule(Edit.right)
         return
       end
     end
+  end
+
+  if self.current_wildcard then
+    -- print(self:should_expand_wildcard(char))
+
+    if self:should_expand_wildcard(char) then
+      vim.cmd [[let v:char = ""]]
+      self:expand_wildcard(char)
+      self:reset()
+    end
+
+    return
   end
 
   -- If we shouldn't expand based on the callback then reset and abort.
@@ -117,10 +136,17 @@ function Input:input(char)
     return
   end
 
+  -- print(vim.inspect(self.current_branch))
+
   -- This would mean a new sequence, so we check the char against the root tree.
   if not next_branch then
-    self:reset()
-    next_branch = self.current_branch and self.current_branch.branches[key]
+    if self.current_branch.wildcard then
+      self.current_wildcard = self.current_branch.wildcard
+      self.wildcard_start = col
+    else
+      self:reset()
+      next_branch = self.current_branch and self.current_branch.branches[key]
+    end
   end
 
   -- If nothing here then we are entering just regular input.
@@ -194,6 +220,8 @@ function Input:input(char)
 
   if not vim.tbl_isempty(next_branch.branches) then
     self.current_branch = next_branch
+  elseif next_branch.wildcard then
+    self.current_wildcard = next_branch.wildcard
   else
     -- Reset everything if there are no more branches.
     self:reset()
@@ -203,9 +231,71 @@ function Input:input(char)
   vim.schedule(function() queue:execute() end)
 end
 
+function Input:should_expand_wildcard(char)
+  if not self.current_wildcard then return true end
+
+  if self.current_wildcard.terminate_when then
+    return Config.resolve_match(self.current_wildcard.terminate_when, char, self.bufnr, self)
+  end
+
+  return self:_should_expand_wildcard(self.current_wildcard, char)
+end
+
+function Input:_should_expand_wildcard(wildcard, char)
+  return wildcard.next_chars[1] == char
+end
+
+function Input:expand_wildcard(char, col_offset)
+  if not self.current_wildcard then return end
+
+  local _, current_col = unpack(Utils.get_cursor())
+
+  if not col_offset then
+    if self.current_context then
+      local _, context_col = unpack(self.current_context:end_())
+
+      col_offset = context_col - current_col + 1
+    else
+      col_offset = 0
+    end
+  end
+
+  local args = {
+    char = char,
+    bufnr = bufnr,
+    offset = col_offset,
+    wildcard = self.current_wildcard,
+    wildcard_start = self.wildcard_start
+  }
+
+  print(vim.inspect(args))
+
+  if Utils.is_func(self.current_wildcard.handle_expansion) then
+    self.current_wildcard.handle_expansion(args)
+  else
+    self:_expand_wildcard(args)
+  end
+
+  self:reset()
+end
+
+function Input:_expand_wildcard(args)
+  local row, col = unpack(Utils.get_cursor())
+  local line = api.nvim_buf_get_lines(args.bufnr, row, row + 1, false)[1] or ""
+  local wild_content = string.sub(line, args.wildcard_start + 1, col)
+  local _, after = Utils.get_surrounding_chars(args.bufnr, { row, col - 1 }, 0, #args.wildcard.next_chars)
+
+  -- print(row, col)
+  -- print(#wildcard.next_chars, after)
+  -- print(wild_content)
+  -- print(vim.inspect(wildcard), self.wildcard_start)
+end
+
 function Input:reset()
   self.current_branch = self.tree.openers
   self.current_context = nil
+  self.current_wildcard = nil
+  self.wildcard_start = nil
 end
 
 return Input

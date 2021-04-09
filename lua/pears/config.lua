@@ -51,6 +51,18 @@ function M.should_include(value, arg)
   return nil
 end
 
+function M.resolve_match(fn_or_string, arg, ...)
+  if Utils.is_func(fn_or_string) then
+    return fn_or_string(arg, select(2))
+  end
+
+  if Utils.is_string(fn_or_string) and Utils.is_string(arg) then
+    return string.match(arg, fn_or_string)
+  end
+
+  return nil
+end
+
 function M.exec_config_handler(handler, config)
   config = config or {
     pairs = {}
@@ -91,20 +103,23 @@ end
 
 function M.get_default_config()
   return M.exec_config_handler(function(c)
-    c.pair("{", "}")
-    c.pair("[", "]")
-    c.pair("(", ")")
-    c.pair("\"", "\"")
-    c.pair("'", {
-      close = "'",
-      should_expand = Utils.negate(Utils.has_leading_alpha)
-    })
-    c.pair("`", "`")
-    c.pair("<", ">")
-    c.pair("\"\"\"", "\"\"\"")
-    c.pair("<!--", "-->")
-    c.pair("```", "```")
+    -- c.pair("{", "}")
+    -- c.pair("[", "]")
+    -- c.pair("(", ")")
+    -- c.pair("\"", "\"")
+    -- c.pair("'", {
+    --   close = "'",
+    --   should_expand = Utils.negate(Utils.has_leading_alpha)
+    -- })
+    -- c.pair("`", "`")
+    -- c.pair("<", ">")
+    -- c.pair("<*>", "</*>")
+    -- c.pair("<", ">")
+    -- c.pair("\"\"\"", "\"\"\"")
+    -- c.pair("<!--", "-->")
+    -- c.pair("```", "```")
     c.pair("<?", "?>")
+    c.pair("<?*?>", "<*?>")
 
     c.remove_pair_on_outer_backspace(true)
     c.remove_pair_on_inner_backspace(true)

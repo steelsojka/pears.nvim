@@ -23,8 +23,9 @@ function M.get_surrounding_chars(bufnr, position, lead_count, tail_count)
   local line = api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
 
   if line then
+    print(line, col + 1, math.min(col + tail_count, #line + 1))
     local before = string.sub(line, math.max(col - lead_count + 1, 0), col)
-    local after = string.sub(line, col + 1, col + tail_count)
+    local after = string.sub(line, col + 1, math.min(col + tail_count, #line + 1))
 
     return before, after
   end

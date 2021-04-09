@@ -25,7 +25,6 @@ function M.normalize_pair(key, value)
 end
 
 function M.should_include_by_ft(ft, arg)
-  print(vim.inspect(arg))
   if Utils.is_table(arg) then
     -- inclusion and exclusion tables
     -- { includes = {'ruby'}, excludes = {'kotlin'} }

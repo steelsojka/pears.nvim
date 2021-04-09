@@ -20,17 +20,21 @@ function M.setup(config_handler)
   vim.cmd [[au BufEnter * :lua require("pears").attach()]]
 end
 
+function M.is_attached(bufnr)
+  local _, activated = pcall(api.nvim_buf_get_var, bufnr, Common.activated_buf_var)
+
+  return activated == 1
+end
+
 function M.attach(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
-  local _, activated = pcall(api.nvim_buf_get_var, bufnr, Common.activated_buf_var)
-
-  if activated == 1 then
+  if M.is_attached(bufnr) then
     return
   end
 
   api.nvim_buf_set_var(bufnr, Common.activated_buf_var, 1)
-  M.setup_buf_pairs(nil, { bufnr = bufnr })
+  M.setup_buf_pairs(nil, {bufnr = bufnr, skip_on_exist = true})
 
   api.nvim_buf_set_keymap(
     bufnr,
@@ -154,19 +158,25 @@ function M.setup_buf_pairs(_pairs, opts)
   local ft = opts.ft or api.nvim_buf_get_option(bufnr, 'ft')
   local included_pairs = {}
 
-  if Utils.is_table(_pairs) then
-    for _, pair in ipairs(_pairs) do
-      local key = PearTree.make_key(pair)
+  if opts.skip_on_exist then
+    local existing_tree = M.get_buf_tree(bufnr)
 
-      if M.config.pairs[key] then
-        included_pairs[key] = M.config.pairs[key]
-      end
+    if existing_tree then return end
+  end
+
+  for key, pair in pairs(M.config.pairs) do
+    local include = Config.should_include(pair.open, _pairs)
+
+    if include == nil then
+      include = Config.should_include(pair.open, M.pair_inclusion)
     end
-  else
-    for key, pair in pairs(M.config.pairs) do
-      if Config.should_include_by_ft(ft, pair.filetypes) then
-        included_pairs[key] = pair
-      end
+
+    if include == nil then
+      include = Config.should_include(ft, pair.filetypes)
+    end
+
+    if include == nil or include then
+      included_pairs[key] = pair
     end
   end
 

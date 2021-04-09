@@ -81,6 +81,22 @@ function M.has_leading_alpha(bufnr)
   return string.match(before, "[a-zA-Z]")
 end
 
+function M.partial(fn, ...)
+  local args = {select(1, ...)}
+
+  return function(...)
+    return fn(unpack(args), ...)
+  end
+end
+
+function M.is_type(_type, v)
+  return type(v) == _type
+end
+
+M.is_table = M.partial(M.is_type, "table")
+M.is_number = M.partial(M.is_type, "number")
+M.is_func = M.partial(M.is_type, "function")
+
 function M.negate(fn)
   return function(...) return not fn(...) end
 end
@@ -91,6 +107,16 @@ end
 
 function M.constant(value)
   return function() return value end
+end
+
+function M.key_by(tbl, prop)
+  local result = {}
+
+  for _, v in ipairs(tbl) do
+    result[v[prop]] = v
+  end
+
+  return result
 end
 
 M.noop = M.constant(nil)

@@ -22,6 +22,7 @@ end
 function Trie:query(chars)
   local last = nil
   local last_branch = self.branches
+  local index
 
   chars = chars or ""
 
@@ -29,6 +30,8 @@ function Trie:query(chars)
     local char = string.sub(chars, i, i)
     local key = Trie.make_key(char)
     local item = last_branch[key]
+
+    index = i
 
     if item then
       if item.leaf then
@@ -45,14 +48,14 @@ function Trie:query(chars)
     end
   end
 
-  return last, i
+  return last, index
 end
 
 function Trie:make(dictionary)
   local branches = {}
   local max_len = 0
 
-  for key, value in pairs(dictionary) do
+  for _, value in pairs(dictionary) do
     local current_list = branches
     local current_branch
     local key_string = self.get_key(value)

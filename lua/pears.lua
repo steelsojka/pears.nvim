@@ -12,11 +12,10 @@ M.config = Config.get_default_config()
 M.inputs_by_buf = Utils.make_buf_table(function(input)
   input:reset()
 end)
-M._pear_tree = PearTree.new({})
+M.trees_by_buf = Utils.make_buf_table()
 
 function M.setup(config_handler)
   M.config = Config.make_user_config(config_handler)
-  M._pear_tree:from_config(M.config.pairs)
 
   vim.cmd [[au BufEnter * :lua require("pears").attach()]]
 end
@@ -31,7 +30,7 @@ function M.attach(bufnr)
   end
 
   api.nvim_buf_set_var(bufnr, Common.activated_buf_var, 1)
-  M.inputs_by_buf[bufnr] = Input.new(bufnr, M._pear_tree, {})
+  M.setup_buf_pairs(nil, { bufnr = bufnr })
 
   api.nvim_buf_set_keymap(
     bufnr,
@@ -49,19 +48,16 @@ function M.attach(bufnr)
       {silent = true})
   end
 
+  vim.cmd(string.format([[au FileType <buffer=%d> lua require("pears").setup_buf_pairs(nil, {bufnr = %d})]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertLeave <buffer=%d> lua require("pears").on_insert_leave(%d)]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertCharPre <buffer=%d> call luaeval("require('pears').handle_input(%d, _A)", v:char)]], bufnr, bufnr))
 end
 
-function M.get_pair_entry(key)
-  return M.config.pairs[key]
-end
-
 function M.handle_backspace(bufnr)
-  local input = M.inputs_by_buf[bufnr]
+  local pear_tree, input = M.get_buf_tree(bufnr)
 
   if M.config.remove_pair_on_inner_backspace then
-    local open_leaf, close_leaf = M._pear_tree:get_wrapping_pair_at(bufnr)
+    local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr)
 
     -- Remove the enclosed pair
     -- {|} -> |
@@ -77,8 +73,8 @@ function M.handle_backspace(bufnr)
   if M.config.remove_pair_on_outer_backspace then
     local cursor = Utils.get_cursor()
 
-    for i = 1, M._pear_tree.max_closer_len do
-      local open_leaf, close_leaf = M._pear_tree:get_wrapping_pair_at(bufnr, {cursor[1], cursor[2] - i})
+    for i = 1, pear_tree.max_closer_len do
+      local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr, {cursor[1], cursor[2] - i})
 
       -- Remove from the end of the pair
       -- NOTE: Does not support nested pairs
@@ -129,7 +125,7 @@ function M._handle_return(bufnr)
 end
 
 function M.on_insert_leave(bufnr)
-  local input = M.inputs_by_buf[bufnr]
+  local _, input = M.get_buf_tree(bufnr)
 
   if not input then return end
 
@@ -138,11 +134,46 @@ function M.on_insert_leave(bufnr)
 end
 
 function M.handle_input(bufnr, char)
-  local input = M.inputs_by_buf[bufnr]
+  local _, input = M.get_buf_tree(bufnr)
 
   if not input then return end
 
   input:input(char)
+end
+
+function M.get_buf_tree(bufnr)
+  bufnr = bufnr or api.nvim_get_current_buf()
+
+  return M.trees_by_buf[bufnr], M.inputs_by_buf[bufnr]
+end
+
+function M.setup_buf_pairs(_pairs, opts)
+  opts = opts or {}
+
+  local bufnr = opts.bufnr or api.nvim_get_current_buf()
+  local ft = opts.ft or api.nvim_buf_get_option(bufnr, 'ft')
+  local included_pairs = {}
+
+  if Utils.is_table(_pairs) then
+    for _, pair in ipairs(_pairs) do
+      local key = PearTree.make_key(pair)
+
+      if M.config.pairs[key] then
+        included_pairs[key] = M.config.pairs[key]
+      end
+    end
+  else
+    for key, pair in pairs(M.config.pairs) do
+      if Config.should_include_by_ft(ft, pair.filetypes) then
+        included_pairs[key] = pair
+      end
+    end
+  end
+
+  local pear_tree = PearTree.new(included_pairs)
+
+  M.trees_by_buf[bufnr] = pear_tree
+  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree, {})
 end
 
 return M

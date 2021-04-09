@@ -24,6 +24,30 @@ function M.normalize_pair(key, value)
   return entry
 end
 
+function M.should_include_by_ft(ft, arg)
+  print(vim.inspect(arg))
+  if Utils.is_table(arg) then
+    -- inclusion and exclusion tables
+    -- { includes = {'ruby'}, excludes = {'kotlin'} }
+    if vim.tbl_islist(arg.include) or vim.tbl_islist(arg.exclude) then
+      if vim.tbl_islist(arg.exclude) and vim.tbl_contains(arg.exclude, ft) then
+        return false
+      end
+
+      if vim.tbl_islist(arg.include) and not vim.tbl_contains(arg.include, ft) then
+        return false
+      end
+    end
+
+    -- List of filetypes
+    if vim.tbl_islist(arg) and not vim.tbl_contains(arg, ft) then
+      return false
+    end
+  end
+
+  return true
+end
+
 function M.exec_config_handler(handler, config)
   config = config or {
     pairs = {}

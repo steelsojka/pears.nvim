@@ -53,7 +53,7 @@ end
 
 function M.resolve_match(fn_or_string, arg, ...)
   if Utils.is_func(fn_or_string) then
-    return fn_or_string(arg, select(2))
+    return fn_or_string(arg, select(2, ...))
   end
 
   if Utils.is_string(fn_or_string) and Utils.is_string(arg) then
@@ -65,11 +65,14 @@ end
 
 function M.exec_config_handler(handler, config)
   config = config or {
+    preset_paths = {"pears.presets"},
     pairs = {}
   }
 
   if handler then
-    local conf = setmetatable({
+    local conf
+
+    conf = setmetatable({
       pair = function(key, value, overwrite)
         local k_key = M.get_escaped_key(key)
 
@@ -84,6 +87,19 @@ function M.exec_config_handler(handler, config)
             config.pairs[k_key] = M.normalize_pair(key, vim.tbl_extend("force", config.pairs[k_key] or {}, norm_value))
           end
         end
+      end,
+      preset = function(name, opts)
+        for _, path in ipairs(config.preset_paths) do
+          local success, preset = pcall(require, path.. "." ..name)
+
+          if success and Utils.is_func(preset) then
+            preset(conf, opts or {})
+            break
+          end
+        end
+      end,
+      add_preset_path = function(path)
+        table.insert(config, 1, path)
       end
     }, {
       __index = function(tbl, prop)
@@ -103,23 +119,16 @@ end
 
 function M.get_default_config()
   return M.exec_config_handler(function(c)
-    -- c.pair("{", "}")
-    -- c.pair("[", "]")
-    -- c.pair("(", ")")
-    -- c.pair("\"", "\"")
-    -- c.pair("'", {
-    --   close = "'",
-    --   should_expand = Utils.negate(Utils.has_leading_alpha)
-    -- })
-    -- c.pair("`", "`")
-    -- c.pair("<", ">")
-    -- c.pair("<*>", "</*>")
-    -- c.pair("<", ">")
-    -- c.pair("\"\"\"", "\"\"\"")
-    -- c.pair("<!--", "-->")
-    -- c.pair("```", "```")
-    c.pair("<?", "?>")
-    c.pair("<?*?>", "<*?>")
+    c.pair("{", "}")
+    c.pair("[", "]")
+    c.pair("(", ")")
+    c.pair("\"", "\"")
+    c.pair("\"\"\"", "\"\"\"")
+    c.pair("'", {
+      close = "'",
+      should_expand = Utils.negate(Utils.has_leading_alpha)
+    })
+    c.pair("`", "`")
 
     c.remove_pair_on_outer_backspace(true)
     c.remove_pair_on_inner_backspace(true)

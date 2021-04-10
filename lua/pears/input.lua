@@ -2,6 +2,7 @@ local Utils = require "pears.utils"
 local PearTree = require "pears.pear_tree"
 local Context = require "pears.context"
 local Edit = require "pears.edit"
+local Config = require "pears.config"
 local api = vim.api
 
 local Input = {}
@@ -116,8 +117,6 @@ function Input:input(char)
   end
 
   if self.current_wildcard then
-    -- print(self:should_expand_wildcard(char))
-
     if self:should_expand_wildcard(char) then
       vim.cmd [[let v:char = ""]]
       self:expand_wildcard(char)
@@ -136,11 +135,9 @@ function Input:input(char)
     return
   end
 
-  -- print(vim.inspect(self.current_branch))
-
   -- This would mean a new sequence, so we check the char against the root tree.
   if not next_branch then
-    if self.current_branch.wildcard then
+    if self.current_branch.wildcard and not self:should_expand_wildcard(char, self.current_branch.wildcard) then
       self.current_wildcard = self.current_branch.wildcard
       self.wildcard_start = col
     else
@@ -159,6 +156,16 @@ function Input:input(char)
   if next_branch.leaf then
     local start
     local leaf = next_branch.leaf
+
+    -- Empty wildcard match <*></*> -> we entered <>
+    -- This wouldn't get flagged a wildcard yet until now, so
+    -- just set the wildcard state and act as if we input the character again.
+    if leaf.is_wildcard then
+      self.current_wildcard = leaf
+      self.wildcard_start = col
+      self:input(char)
+      return
+    end
 
     if not row or not col then
       row, col = unpack(api.nvim_win_get_cursor(0))
@@ -231,14 +238,16 @@ function Input:input(char)
   vim.schedule(function() queue:execute() end)
 end
 
-function Input:should_expand_wildcard(char)
-  if not self.current_wildcard then return true end
+function Input:should_expand_wildcard(char, wildcard)
+  wildcard = wildcard or self.current_wildcard
 
-  if self.current_wildcard.terminate_when then
-    return Config.resolve_match(self.current_wildcard.terminate_when, char, self.bufnr, self)
+  if not wildcard then return true end
+
+  if wildcard.valid_content then
+    return not Config.resolve_match(wildcard.valid_content, char, self.bufnr, self)
   end
 
-  return self:_should_expand_wildcard(self.current_wildcard, char)
+  return self:_should_expand_wildcard(wildcard, char)
 end
 
 function Input:_should_expand_wildcard(wildcard, char)
@@ -262,13 +271,11 @@ function Input:expand_wildcard(char, col_offset)
 
   local args = {
     char = char,
-    bufnr = bufnr,
+    bufnr = self.bufnr,
     offset = col_offset,
     wildcard = self.current_wildcard,
     wildcard_start = self.wildcard_start
   }
-
-  print(vim.inspect(args))
 
   if Utils.is_func(self.current_wildcard.handle_expansion) then
     self.current_wildcard.handle_expansion(args)
@@ -283,12 +290,17 @@ function Input:_expand_wildcard(args)
   local row, col = unpack(Utils.get_cursor())
   local line = api.nvim_buf_get_lines(args.bufnr, row, row + 1, false)[1] or ""
   local wild_content = string.sub(line, args.wildcard_start + 1, col)
-  local _, after = Utils.get_surrounding_chars(args.bufnr, { row, col - 1 }, 0, #args.wildcard.next_chars)
+  local prefix = table.concat(args.wildcard.prev_chars)
+  local suffix = table.concat(args.wildcard.next_chars)
+  local tail_prefix, tail_suffix = string.match(args.wildcard.close, "(.*)*(.*)")
+  local begin_col = args.wildcard_start - #args.wildcard.prev_chars
 
-  -- print(row, col)
-  -- print(#wildcard.next_chars, after)
-  -- print(wild_content)
-  -- print(vim.inspect(wildcard), self.wildcard_start)
+  vim.schedule(function()
+    api.nvim_win_set_cursor(0, {row + 1, begin_col})
+    Edit.delete(#args.wildcard.prev_chars + #wild_content + #args.wildcard.next_chars - 1)
+    Edit.insert(prefix .. wild_content .. suffix .. tail_prefix .. wild_content .. tail_suffix)
+    Edit.left(#tail_suffix + #wild_content + #tail_prefix)
+  end)
 end
 
 function Input:reset()

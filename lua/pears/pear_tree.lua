@@ -76,6 +76,7 @@ function Trie:make(dictionary)
     local is_escaped = false
     local is_wildcard = false
     local wildcard = nil
+    local prev_chars = {}
 
     for char in string.gmatch(key_string, ".") do
       if char == "\\" and not is_escaped then
@@ -88,7 +89,9 @@ function Trie:make(dictionary)
         if char == "*" and not is_escaped then
           current_branch.wildcard = value
           wildcard = value
+          wildcard.is_wildcard = true
           wildcard.next_chars = {}
+          wildcard.prev_chars = {unpack(prev_chars)}
           is_wildcard = true
         else
           if not current_list[key] then
@@ -105,6 +108,7 @@ function Trie:make(dictionary)
 
           current_branch = current_list[key]
           current_list = current_branch.branches
+          table.insert(prev_chars, char)
         end
 
         is_escaped = false
@@ -146,7 +150,6 @@ function PearTree:from_config(pair_config_map)
 
   self.max_opener_len = self.openers.max_len
   self.max_closer_len = self.closers.max_len
-  print(vim.inspect(self.openers))
 end
 
 function PearTree:get_wrapping_pair_at(bufnr, position)

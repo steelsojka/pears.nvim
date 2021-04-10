@@ -23,7 +23,6 @@ function M.get_surrounding_chars(bufnr, position, lead_count, tail_count)
   local line = api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
 
   if line then
-    print(line, col + 1, math.min(col + tail_count, #line + 1))
     local before = string.sub(line, math.max(col - lead_count + 1, 0), col)
     local after = string.sub(line, col + 1, math.min(col + tail_count, #line + 1))
 
@@ -97,6 +96,7 @@ end
 M.is_table = M.partial(M.is_type, "table")
 M.is_number = M.partial(M.is_type, "number")
 M.is_func = M.partial(M.is_type, "function")
+M.is_string = M.partial(M.is_type, "string")
 
 function M.negate(fn)
   return function(...) return not fn(...) end

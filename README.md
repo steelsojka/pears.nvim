@@ -207,3 +207,49 @@ require "pears".setup(function(conf)
 end)
 ```
 
+Wildcard expansion (experimental)
+---------------------------------
+
+You can use pears to produce matching html tags or any matching content. Here is a sample configuration for matching html tags.
+
+```lua
+local cool = <div|
+
+-- type > or any non valid character
+
+local cool = <div>|</div>
+```
+
+```lua
+require "pears".setup(function(conf
+  conf.pair("<*>", {
+    close = "</*>",
+    filetypes = {
+      include = {
+        "javascript",
+        "typescript",
+        "javascriptreact",
+        "typescriptreact",
+        "php",
+        "jsx",
+        "tsx",
+        "html",
+        "xml"}},
+    -- Valid chars that can be use in place of "*" in the pair
+    -- If a character does not match this, then the pair will be expanded.
+    -- This can be a pattern or a function
+    valid_content = "[a-zA-Z_%-]"
+  })
+end)
+```
+
+Only one wildcard may appear in a wildcard pair at a time.
+Carriage return behavior in wildcard pairs is still under development.
+
+You can also enable this using the preset.
+
+```lua
+require "pears".setup(function(conf
+  conf.preset "tag_matching"
+end)
+```

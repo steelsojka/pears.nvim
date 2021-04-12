@@ -12,6 +12,9 @@ return function(conf, opts)
         "tsx",
         "html",
         "xml"}},
-    valid_content = "[a-zA-Z_%-]"
+    capture_content = "^[a-zA-Z_%-]+",
+    should_expand = function(args)
+      return args.char == ">"
+    end
   })
 end

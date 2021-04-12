@@ -3,6 +3,7 @@ local PearTree = require "pears.pear_tree"
 local Context = require "pears.context"
 local Edit = require "pears.edit"
 local Config = require "pears.config"
+local PairContext = require "pears.pair_context"
 local api = vim.api
 
 local Input = {}
@@ -15,6 +16,7 @@ function Input.new(bufnr, pear_tree, opts)
     tree = pear_tree,
     contexts = {},
     wildcard_start = nil,
+    pending_stack = {},
     current_context = nil,
     current_branch = pear_tree.openers
   }
@@ -74,6 +76,111 @@ function Input:step_back()
   end
 end
 
+function Input:_input(char)
+  local key = PearTree.make_key(char)
+  local row, col = unpack(api.nvim_win_get_cursor(0))
+
+  local did_expand, context = self:expand(char)
+
+  if did_expand then
+    return
+  elseif context then
+    context:step_forward(key)
+  end
+
+  -- TODO: Check closers
+
+  if not self.tree.branches[key] then return end
+
+  -- We started a new pair context
+
+  local new_context = PairContext.new(self.tree)
+
+  table.insert(new_context, 1)
+  new_context:step_forward(char)
+  self:expand(char)
+end
+
+function Input:expand(char)
+  local pending = self.pending_stack[1]
+
+  if pending then
+    local did_expand = self._expand_context(pending, char)
+
+    if did_expand then
+      return true, pending
+    end
+
+    return false, pending
+  end
+
+  return false
+end
+
+function Input:_handle_expansion(leaf, context)
+  if Utils.is_func(leaf.handle_expansion) then
+    leaf.handle_expansion({
+      input = self,
+      leaf = leaf,
+      context = context,
+      bufnr = self.bufnr
+    })
+
+    return
+  end
+
+  if leaf.is_wildcard then
+    Input:_handle_wildcard_expansion(leaf, context)
+  else
+    Input:_handle_simple_expansion(leaf, context)
+  end
+end
+
+function Input:_expand_context(context, char)
+  local args = {
+    char = char,
+    context = context,
+    bufnr = self.bufnr,
+    input = self
+  }
+
+  local leaf = context:get_current_leaf()
+
+  if leaf and leaf.expand_when(args) then
+    if leaf.should_expand(args) then
+      self:_handle_expansion(pending_leaf, context)
+
+      return true
+    end
+
+    table.remove(self.pending_stack, 1)
+  end
+
+  return false
+end
+
+function Input:expand(char)
+  local pending = self.pending_stack[1]
+
+  if pending then
+    local args = {
+      char = char,
+      bufnr = self.bufnr,
+      input = self
+    }
+    local pending_leaf = pending:get_current_leaf()
+
+    if pending_leaf and pending_leaf.expand_when(args) and pending_leaf.should_expand(args) then
+      self:handle_expansion(pending_leaf)
+      table.remove(self.pending_stack, 1)
+
+      return true
+    end
+  end
+
+  return false
+end
+
 function Input:input(char)
   local key = PearTree.make_key(char)
   local row, col = unpack(api.nvim_win_get_cursor(0))
@@ -129,7 +236,11 @@ function Input:input(char)
   -- If we shouldn't expand based on the callback then reset and abort.
   if next_branch
     and next_branch.leaf
-    and not next_branch.leaf.should_expand(self.bufnr, next_branch.leaf, self)
+    and not next_branch.leaf.should_expand({
+      bufnr = self.bufnr,
+      pair = next_branch.leaf,
+      input = self
+    })
   then
     self:reset()
     return
@@ -243,8 +354,13 @@ function Input:should_expand_wildcard(char, wildcard)
 
   if not wildcard then return true end
 
-  if wildcard.valid_content then
-    return not Config.resolve_match(wildcard.valid_content, char, self.bufnr, self)
+  if wildcard.should_expand then
+    return wildcard.should_expand({
+      char = char,
+      bufnr = self.bufnr,
+      pair = wildcard,
+      input = self
+    })
   end
 
   return self:_should_expand_wildcard(wildcard, char)
@@ -252,6 +368,12 @@ end
 
 function Input:_should_expand_wildcard(wildcard, char)
   return wildcard.next_chars[1] == char
+end
+
+function Input:_handle_wildcard_expansion(leaf, context)
+end
+
+function Input:_handle_simple_expansion(leaf, context)
 end
 
 function Input:expand_wildcard(char, col_offset)
@@ -289,7 +411,8 @@ end
 function Input:_expand_wildcard(args)
   local row, col = unpack(Utils.get_cursor())
   local line = api.nvim_buf_get_lines(args.bufnr, row, row + 1, false)[1] or ""
-  local wild_content = string.sub(line, args.wildcard_start + 1, col)
+  local content_to_cursor = string.sub(line, args.wildcard_start + 1, col)
+  local wild_content = Config.resolve_capture(args.wildcard.capture_content, content_to_cursor)
   local prefix = table.concat(args.wildcard.prev_chars)
   local suffix = table.concat(args.wildcard.next_chars)
   local tail_prefix, tail_suffix = string.match(args.wildcard.close, "(.*)*(.*)")
@@ -297,8 +420,8 @@ function Input:_expand_wildcard(args)
 
   vim.schedule(function()
     api.nvim_win_set_cursor(0, {row + 1, begin_col})
-    Edit.delete(#args.wildcard.prev_chars + #wild_content + #args.wildcard.next_chars - 1)
-    Edit.insert(prefix .. wild_content .. suffix .. tail_prefix .. wild_content .. tail_suffix)
+    Edit.delete(#args.wildcard.prev_chars + #content_to_cursor + #args.wildcard.next_chars - 1)
+    Edit.insert(prefix .. content_to_cursor .. suffix .. tail_prefix .. wild_content .. tail_suffix)
     Edit.left(#tail_suffix + #wild_content + #tail_prefix)
   end)
 end

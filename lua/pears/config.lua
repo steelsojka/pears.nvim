@@ -51,13 +51,19 @@ function M.should_include(value, arg)
   return nil
 end
 
-function M.resolve_match(fn_or_string, arg, ...)
+function M.resolve_capture(fn_or_string, arg, ...)
   if Utils.is_func(fn_or_string) then
-    return fn_or_string(arg, select(2, ...))
+    return fn_or_string(arg, select(1, ...))
   end
 
   if Utils.is_string(fn_or_string) and Utils.is_string(arg) then
-    return string.match(arg, fn_or_string)
+    local start, end_ = string.find(arg, fn_or_string)
+
+    if start and end_ then
+      return string.sub(arg, start, end_)
+    end
+
+    return ""
   end
 
   return nil
@@ -126,9 +132,12 @@ function M.get_default_config()
     c.pair("\"\"\"", "\"\"\"")
     c.pair("'", {
       close = "'",
-      should_expand = Utils.negate(Utils.has_leading_alpha)
+      should_expand = function(args)
+        return not Utils.has_leading_alpha(args.bufnr)
+      end
     })
     c.pair("`", "`")
+    c.preset "tag_matching"
 
     c.remove_pair_on_outer_backspace(true)
     c.remove_pair_on_inner_backspace(true)

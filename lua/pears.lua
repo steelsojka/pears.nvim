@@ -151,6 +151,14 @@ function M.get_buf_tree(bufnr)
   return M.trees_by_buf[bufnr], M.inputs_by_buf[bufnr]
 end
 
+function M.expand_wildcard(bufnr)
+  local _, input = M.get_buf_tree(bufnr)
+
+  if not input then return end
+
+  input:expand_wildcard()
+end
+
 function M.setup_buf_pairs(_pairs, opts)
   opts = opts or {}
 

@@ -142,7 +142,7 @@ function M.handle_input(bufnr, char)
 
   if not input then return end
 
-  input:input(char)
+  input:_input(char)
 end
 
 function M.get_buf_tree(bufnr)

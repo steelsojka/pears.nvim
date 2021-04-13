@@ -81,6 +81,13 @@ function M.has_leading_alpha(bufnr)
   return string.match(before, "[a-zA-Z]")
 end
 
+function M.combine_range(start, end_)
+  local start_row, start_col = unpack(start)
+  local end_row, end_col = unpack(end_)
+
+  return {start_row, start_col, end_row, end_col}
+end
+
 function M.partial(fn, ...)
   local args = {select(1, ...)}
 
@@ -121,5 +128,15 @@ function M.key_by(tbl, prop)
 end
 
 M.noop = M.constant(nil)
+
+function M.map(predicate, list)
+  local result = {}
+
+  for i, item in ipairs(list) do
+    table.insert(result, predicate(item, i))
+  end
+
+  return result
+end
 
 return M

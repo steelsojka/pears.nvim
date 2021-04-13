@@ -18,6 +18,10 @@ function M.make_feedkey(key)
   end
 end
 
+function M.prevent_input()
+  vim.cmd [[let v:char = ""]]
+end
+
 M.left = M.make_feedkey("<Left>")
 M.right = M.make_feedkey("<Right>")
 M.delete = M.make_feedkey("<Del>")
@@ -27,9 +31,10 @@ M.return_and_indent = Utils.unary(M.make_feedkey("<CR><C-c>O"))
 
 M.Queue = {}
 
-function M.Queue.new()
+function M.Queue.new(in_loop)
   local self = {
-    _queue = {}
+    _queue = {},
+    _in_loop = in_loop
   }
 
   return setmetatable(self, {__index = M.Queue})
@@ -40,6 +45,20 @@ function M.Queue:add(fn, args)
 end
 
 function M.Queue:execute()
+  if self:is_empty() then return end
+
+  if self._in_loop then
+    vim.schedule(function() self:_execute() end)
+  else
+    self:_execute()
+  end
+end
+
+function M.Queue:is_empty()
+  return #self._queue == 0
+end
+
+function M.Queue:_execute()
   for _, item in ipairs(self._queue) do
     item[1](unpack(item[2] or {}))
   end

@@ -51,6 +51,18 @@ function M.should_include(value, arg)
   return nil
 end
 
+function M.resolve_matcher_event(fn_or_string, args, ...)
+  if Utils.is_func(fn_or_string) then
+    return fn_or_string(arg, select(1, ...))
+  end
+
+  if Utils.is_string(fn_or_string) and Utils.is_string(args.char) then
+    return string.match(args.char, fn_or_string)
+  end
+
+  return true
+end
+
 function M.resolve_capture(fn_or_string, arg, ...)
   if Utils.is_func(fn_or_string) then
     return fn_or_string(arg, select(1, ...))
@@ -130,6 +142,9 @@ function M.get_default_config()
     c.pair("(", ")")
     c.pair("\"", "\"")
     c.pair("\"\"\"", "\"\"\"")
+    c.pair("<", ">")
+    c.pair("<!--", "-->")
+    c.pair("<?", "?>")
     c.pair("'", {
       close = "'",
       should_expand = function(args)

@@ -1,6 +1,5 @@
 local Utils = require "pears.utils"
 local PearTree = require "pears.pear_tree"
-local Context = require "pears.context"
 local Edit = require "pears.edit"
 local Config = require "pears.config"
 local PairContext = require "pears.pair_context"
@@ -57,11 +56,11 @@ function Input:remove_context(context)
 end
 
 function Input:clear_contexts()
-  for _, context in ipairs(self.contexts) do
+  for _, context in ipairs(self.pending_stack) do
     context:destroy()
   end
 
-  self.contexts = {}
+  self.pending_stack = {}
 end
 
 function Input:_make_context(leaf, start, end_)
@@ -76,36 +75,11 @@ function Input:step_back()
   end
 end
 
-function Input:_input(char)
-  local key = PearTree.make_key(char)
-  local row, col = unpack(api.nvim_win_get_cursor(0))
-
-  local did_expand, context = self:expand(char)
-
-  if did_expand then
-    return
-  elseif context then
-    context:step_forward(key)
-  end
-
-  -- TODO: Check closers
-
-  if not self.tree.branches[key] then return end
-
-  -- We started a new pair context
-
-  local new_context = PairContext.new(self.tree)
-
-  table.insert(new_context, 1)
-  new_context:step_forward(char)
-  self:expand(char)
-end
-
-function Input:expand(char)
+function Input:expand(char, queue)
   local pending = self.pending_stack[1]
 
   if pending then
-    local did_expand = self._expand_context(pending, char)
+    local did_expand = self:_expand_context(pending, char, queue)
 
     if did_expand then
       return true, pending
@@ -115,6 +89,73 @@ function Input:expand(char)
   end
 
   return false
+end
+
+function Input:_pop_pending()
+  local context = self.pending_stack[1]
+
+  if context then
+    context:destroy()
+    table.remove(self.pending_stack, 1)
+  end
+end
+
+function Input:_input(char)
+  local key = PearTree.make_key(char)
+  local row, col = unpack(Utils.get_cursor())
+  local queue = Edit.Queue.new(true)
+  local should_expand = true
+
+  local context = self.pending_stack[1]
+
+  -- if context and did_expand and not self:_is_current_context(context) then
+  --   return
+  -- end
+  local did_step = false
+
+  if context then
+    local _, end_col = unpack(context.range:end_())
+    local leaf = context:get_current_leaf()
+
+    -- End of context "test|"
+    if col == end_col - 1 and leaf and leaf.close == char then
+      -- Move cursor right "test"|
+      Edit.prevent_input()
+      queue:add(Edit.right)
+
+      -- If the context doesn't have anymore branches,
+      -- remove the context
+      if context:at_end() then
+        self:_pop_pending()
+        context = self.pending_stack[1]
+      else
+        did_step = context:step_forward(char)
+      end
+    else
+      did_step = context:step_forward(char)
+    end
+  end
+
+  if not did_step then
+    if not self.tree.openers.branches[key] then
+      should_expand = false
+    else
+      -- We started a new pair context
+
+      local new_context = PairContext.new(self.tree.openers, {row, col, row, col + 1}, self.bufnr)
+
+      table.insert(self.pending_stack, 1, new_context)
+      new_context:step_forward(char)
+      queue:add(function() new_context.range:mark() end)
+    end
+  end
+
+  if should_expand then
+    self:expand(char, queue)
+  end
+
+  queue:execute()
+  -- print(vim.inspect(#self.pending_stack))
 end
 
 function Input:_handle_expansion(leaf, context)
@@ -130,13 +171,17 @@ function Input:_handle_expansion(leaf, context)
   end
 
   if leaf.is_wildcard then
-    Input:_handle_wildcard_expansion(leaf, context)
+    Input:_handle_wildcard_expansion(leaf, context, queue)
   else
-    Input:_handle_simple_expansion(leaf, context)
+    Input:_handle_simple_expansion(leaf, context, queue)
   end
 end
 
-function Input:_expand_context(context, char)
+function Input:_is_current_context(context)
+  return self.pending_stack[1] == context
+end
+
+function Input:_expand_context(context, char, queue)
   local args = {
     char = char,
     context = context,
@@ -146,40 +191,46 @@ function Input:_expand_context(context, char)
 
   local leaf = context:get_current_leaf()
 
-  if leaf and leaf.expand_when(args) then
-    if leaf.should_expand(args) then
-      self:_handle_expansion(pending_leaf, context)
+  if leaf and Config.resolve_matcher_event(leaf.expand_when, args) then
+    local expanded = false
 
-      return true
-    end
-
-    table.remove(self.pending_stack, 1)
-  end
-
-  return false
-end
-
-function Input:expand(char)
-  local pending = self.pending_stack[1]
-
-  if pending then
-    local args = {
-      char = char,
-      bufnr = self.bufnr,
-      input = self
-    }
-    local pending_leaf = pending:get_current_leaf()
-
-    if pending_leaf and pending_leaf.expand_when(args) and pending_leaf.should_expand(args) then
-      self:handle_expansion(pending_leaf)
+    if leaf.should_expand(args) == false then
+      context:destroy()
       table.remove(self.pending_stack, 1)
-
-      return true
+    else
+      queue:add(function()
+        self:_handle_expansion(leaf, context)
+      end)
+      expanded = true
     end
+
+    return expanded
   end
 
   return false
 end
+
+-- function Input:expand(char)
+--   local pending = self.pending_stack[1]
+
+--   if pending then
+--     local args = {
+--       char = char,
+--       bufnr = self.bufnr,
+--       input = self
+--     }
+--     local pending_leaf = pending:get_current_leaf()
+
+--     if pending_leaf and pending_leaf.expand_when(args) and pending_leaf.should_expand(args) then
+--       self:handle_expansion(pending_leaf)
+--       table.remove(self.pending_stack, 1)
+
+--       return true
+--     end
+--   end
+
+--   return false
+-- end
 
 function Input:input(char)
   local key = PearTree.make_key(char)
@@ -371,9 +422,17 @@ function Input:_should_expand_wildcard(wildcard, char)
 end
 
 function Input:_handle_wildcard_expansion(leaf, context)
+  -- print(leaf.open)
 end
 
 function Input:_handle_simple_expansion(leaf, context)
+  local range = context.range:range()
+
+  api.nvim_win_set_cursor(0, {range[1] + 1, range[2]})
+  -- print(vim.inspect(range))
+  Edit.delete(range[4] - range[2])
+  Edit.insert(leaf.open .. leaf.close)
+  Edit.left(#leaf.close)
 end
 
 function Input:expand_wildcard(char, col_offset)

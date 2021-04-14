@@ -92,7 +92,7 @@ function M.handle_backspace(bufnr)
     end
   end
 
-  input:step_back()
+  -- input:step_back()
   Edit.backspace()
 end
 

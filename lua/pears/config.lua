@@ -57,6 +57,7 @@ function M.resolve_matcher_event(fn_or_string, args, ...)
   end
 
   if Utils.is_string(fn_or_string) and Utils.is_string(args.char) then
+    print(args.char, fn_or_string)
     return string.match(args.char, fn_or_string)
   end
 

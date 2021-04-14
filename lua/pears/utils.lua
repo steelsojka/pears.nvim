@@ -2,6 +2,19 @@ local api = vim.api
 
 local M = {}
 
+M.log = (function()
+  local count = 1
+
+  return function(...)
+    print(count..": ", unpack(M.map(function(v)
+      return vim.inspect(v)
+    end, {select(1, ...)})))
+    count = count + 1
+
+    return select(1, ...)
+  end
+end)()
+
 function M.get_cursor()
   local row, col = unpack(api.nvim_win_get_cursor(0))
 
@@ -128,6 +141,7 @@ function M.key_by(tbl, prop)
 end
 
 M.noop = M.constant(nil)
+M.identity = function(a) return a end
 
 function M.map(predicate, list)
   local result = {}
@@ -137,6 +151,67 @@ function M.map(predicate, list)
   end
 
   return result
+end
+
+M.KeyMap = {}
+
+function M.KeyMap.new()
+  return setmetatable({
+    items = {}
+  }, {__index = M.KeyMap})
+end
+
+function M.KeyMap:set(key, item)
+  if not self.items[key] then
+    self.items[key] = {}
+  end
+
+  table.insert(self.items[key], item)
+end
+
+function M.KeyMap:get(key)
+  return self.items[key]
+end
+
+function M.KeyMap:iter()
+  local current_list
+  local current_item
+  local list_index = next(self.items)
+  local item_index
+
+  function iter()
+    local list = self.items[list_index]
+
+    if list then
+      item_index = next(list, item_index)
+
+      if item_index and list[item_index] then
+        return list[item_index]
+      else
+        list_index = next(self.items, list_index)
+
+        return iter()
+      end
+    end
+
+    return nil
+  end
+
+  return iter
+end
+
+function M.KeyMap:reset()
+  self.items = {}
+end
+
+function M.KeyMap:delete(key, item)
+  if item then
+    if self.items[key] then
+      M.pull(self.items[key], item, function(a, b) return a == b end)
+    end
+  else
+    self.items[key] = nil
+  end
 end
 
 return M

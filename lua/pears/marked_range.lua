@@ -68,4 +68,27 @@ function MarkedRange:is_empty()
   return range[1] == range[3] and range[4] - range[2] == 1
 end
 
+function MarkedRange.get_inner_most(list, range, mapper)
+  local last_result
+  local last_range
+  local row, col = unpack(range)
+
+  mapper = mapper or Utils.identity
+
+  for _, item in pairs(list) do
+    local marked_range = mapper(item)
+
+    if marked_range:is_in_range(row, col) then
+      if not last_range
+        or (last_range:is_in_range(unpack(marked_range:start()))
+          and last_range:is_in_range(unpack(marked_range:end_()))) then
+        last_range = marked_range
+        last_result = item
+      end
+    end
+  end
+
+  return last_result, last_range
+end
+
 return MarkedRange

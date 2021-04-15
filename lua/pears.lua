@@ -133,7 +133,6 @@ function M.on_insert_leave(bufnr)
 
   if not input then return end
 
-  input:clear_contexts()
   input:reset()
 end
 
@@ -151,12 +150,12 @@ function M.get_buf_tree(bufnr)
   return M.trees_by_buf[bufnr], M.inputs_by_buf[bufnr]
 end
 
-function M.expand_wildcard(bufnr)
+function M.expand(bufnr)
   local _, input = M.get_buf_tree(bufnr)
 
   if not input then return end
 
-  input:expand_wildcard()
+  input:expand(nil, Edit.Queue.new(true))
 end
 
 function M.setup_buf_pairs(_pairs, opts)

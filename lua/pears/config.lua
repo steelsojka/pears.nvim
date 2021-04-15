@@ -78,7 +78,7 @@ function M.resolve_capture(fn_or_string, arg, ...)
     return ""
   end
 
-  return nil
+  return ""
 end
 
 function M.exec_config_handler(handler, config)

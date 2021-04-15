@@ -1,5 +1,6 @@
 local PearTree = require "pears.pear_tree"
 local MarkedRange = require "pears.marked_range"
+local Utils = require "pears.utils"
 
 local PairContext = {}
 

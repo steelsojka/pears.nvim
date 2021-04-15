@@ -214,4 +214,21 @@ function M.KeyMap:delete(key, item)
   end
 end
 
+function M.get_content_from_range(bufnr, range)
+  local start_row, start_col, end_row, end_col = unpack(range)
+  local lines = api.nvim_buf_get_lines(bufnr, start_row, end_row + 1, false)
+  local first_line = string.sub(lines[1] or "", start_col + 1)
+
+  if start_row == end_row then
+    return {string.sub(first_line, 1, end_col - start_col)}
+  end
+
+  local last_line = string.sub(lines[#lines] or "", 1, end_col)
+
+  lines[1] = first_line
+  lines[#lines] = last_line
+
+  return lines
+end
+
 return M

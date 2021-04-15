@@ -59,7 +59,7 @@ end
 -- end
 
 function Input:clear_contexts()
-  for _, context in ipairs(self.contexts) do
+  for _, context in pairs(self.contexts) do
     context:destroy()
   end
 
@@ -67,6 +67,11 @@ function Input:clear_contexts()
   self.pending_stack = {}
   self.expanded_contexts = {}
   self.closeable_contexts:reset()
+end
+
+function Input:_destroy_context(context)
+  self.contexts[context.id] = nil
+  context:destroy()
 end
 
 -- function Input:_make_context(leaf, start, end_)
@@ -101,7 +106,7 @@ function Input:_pop_pending()
   local context = self.pending_stack[1]
 
   if context then
-    context:destroy()
+    self:_destroy_context(context)
     table.remove(self.pending_stack, 1)
   end
 end
@@ -111,12 +116,12 @@ function Input:_input(char)
   local row, col = unpack(Utils.get_cursor())
   local queue = Edit.Queue.new(true)
   local should_expand = true
-
   local context = self.pending_stack[1]
   local did_step = false
   local is_pending_done = false
+  local did_move_right = false
 
-  Utils.log(self.closeable_contexts:get(key))
+  -- Utils.log(self.closeable_contexts:get(key))
 
   if self.closeable_contexts:get(key) then
     for _, closeable_context in ipairs(self.closeable_contexts:get(key)) do
@@ -128,7 +133,7 @@ function Input:_input(char)
         -- This will still move the current pending context forward.
         Edit.prevent_input()
         queue:add(Edit.right)
-        -- should_expand = false
+        did_move_right = true
         break
       end
     end
@@ -139,6 +144,8 @@ function Input:_input(char)
 
     did_step = step_result.did_step
     is_pending_done = step_result.done
+  elseif did_move_right then
+    should_expand = false
   end
 
   if is_pending_done then
@@ -155,7 +162,7 @@ function Input:_input(char)
 
       local new_context = PairContext.new(self.tree.openers, {row, col, row, col + 1}, self.bufnr)
 
-      table.insert(self.contexts, new_context)
+      self.contexts[new_context.id] = new_context
       table.insert(self.pending_stack, 1, new_context)
       new_context:step_forward(char)
       queue:add(function() new_context.range:mark() end)
@@ -192,17 +199,28 @@ function Input:_is_current_context(context)
   return self.pending_stack[1] == context
 end
 
-function Input:_expand_context(context, char, queue)
-  local args = {
+function Input:_make_event_args(char, context)
+  return {
     char = char,
     context = context,
     bufnr = self.bufnr,
     input = self
   }
+end
 
+function Input:_expand_context(context, char, queue)
+  local args = self:_make_event_args(char, context)
   local leaf = context.leaf
 
-  if leaf and Config.resolve_matcher_event(leaf.expand_when, args) then
+  -- Abort completely aborts the expansion and this context.
+  if leaf and Config.resolve_matcher_event(leaf.abort_when, args, false) then
+    table.remove(self.pending_stack[1], 1)
+    self:_destroy_context(pending)
+
+    return false
+  end
+
+  if leaf and Config.resolve_matcher_event(leaf.expand_when, args, true) then
     local expanded = false
     local should_expand = true
 

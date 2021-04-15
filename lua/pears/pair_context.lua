@@ -5,7 +5,7 @@ local PairContext = {}
 
 function PairContext.new(branch, range, bufnr)
   local self = {
-    id = math.random(1000),
+    id = math.random(10000),
     top_branch = branch,
     bufnr = bufnr,
     trie = nil,

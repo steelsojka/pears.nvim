@@ -137,14 +137,14 @@ end
 
 function M.get_default_config()
   return M.exec_config_handler(function(c)
+    -- These are global configured pairs
+    -- These can be disabled with `c.pair("{", nil)`
     c.pair("{", "}")
     c.pair("[", "]")
     c.pair("(", ")")
     c.pair("\"", "\"")
     c.pair("\"\"\"", "\"\"\"")
-    c.pair("<", ">")
-    c.pair("<!--", "-->")
-    c.pair("<?", "?>")
+    c.pair("'''", "'''")
     c.pair("'", {
       close = "'",
       should_expand = function(args)
@@ -152,6 +152,7 @@ function M.get_default_config()
       end
     })
     c.pair("`", "`")
+    c.pair("```", "```")
     c.preset "tag_matching"
 
     c.remove_pair_on_outer_backspace(true)

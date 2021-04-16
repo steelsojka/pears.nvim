@@ -153,6 +153,21 @@ function M.map(predicate, list)
   return result
 end
 
+function M.find(predicate, list)
+  local index
+  local item
+
+  for i = 1, #list, 1 do
+    if predicate(list[i], i) then
+      index = i
+      item = list[i]
+      break
+    end
+  end
+
+  return item, index
+end
+
 M.KeyMap = {}
 
 function M.KeyMap.new()

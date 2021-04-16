@@ -60,34 +60,36 @@ end
 function M.handle_backspace(bufnr)
   local pear_tree, input = M.get_buf_tree(bufnr)
 
-  if M.config.remove_pair_on_inner_backspace then
-    local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr)
+  if pear_tree then
+    if M.config.remove_pair_on_inner_backspace then
+      local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr)
 
-    -- Remove the enclosed pair
-    -- {|} -> |
-    if open_leaf and close_leaf and M.config.remove_pair_on_inner_backspace then
-      Edit.backspace(#open_leaf.open)
-      Edit.delete(#close_leaf.close)
-      input:reset()
-
-      return
-    end
-  end
-
-  if M.config.remove_pair_on_outer_backspace then
-    local cursor = Utils.get_cursor()
-
-    for i = 1, pear_tree.max_closer_len do
-      local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr, {cursor[1], cursor[2] - i})
-
-      -- Remove from the end of the pair
-      -- NOTE: Does not support nested pairs
-      -- {}| -> |
-      if open_leaf and close_leaf and #close_leaf.close == i then
-        Edit.backspace(#open_leaf.open + #close_leaf.close)
+      -- Remove the enclosed pair
+      -- {|} -> |
+      if open_leaf and close_leaf and M.config.remove_pair_on_inner_backspace then
+        Edit.backspace(#open_leaf.open)
+        Edit.delete(#close_leaf.close)
         input:reset()
 
         return
+      end
+    end
+
+    if M.config.remove_pair_on_outer_backspace then
+      local cursor = Utils.get_cursor()
+
+      for i = 1, pear_tree.max_closer_len do
+        local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr, {cursor[1], cursor[2] - i})
+
+        -- Remove from the end of the pair
+        -- NOTE: Does not support nested pairs
+        -- {}| -> |
+        if open_leaf and close_leaf and #close_leaf.close == i then
+          Edit.backspace(#open_leaf.open + #close_leaf.close)
+          input:reset()
+
+          return
+        end
       end
     end
   end
@@ -155,7 +157,7 @@ function M.expand(bufnr)
 
   if not input then return end
 
-  input:expand(nil, Edit.Queue.new(true))
+  input:expand_wildcard()
 end
 
 function M.setup_buf_pairs(_pairs, opts)

@@ -17,8 +17,7 @@ function Input.new(bufnr, pear_tree, opts)
     contexts = {},
     pending_stack = {},
     expanded_contexts = {},
-    closeable_contexts = Utils.KeyMap.new()
-  }
+    closeable_contexts = Utils.KeyMap.new() }
 
   return setmetatable(self, {__index = Input})
 end
@@ -126,6 +125,29 @@ function Input:_input(char)
   queue:execute()
 end
 
+function Input:expand_wildcard()
+  local next_wildcard, index = Utils.find(function(context)
+    return context.is_wildcard
+  end, self.pending_stack)
+
+  if next_wildcard then
+    local queue = Edit.Queue.new(true)
+    local did_expand, context = self:expand(nil, queue)
+
+    if did_expand
+      and context
+      and context.leaf
+      and context.leaf.is_wildcard
+      and context == self.pending_stack[1]
+    then
+      table.remove(self.pending_stack, 1)
+    end
+    queue:execute()
+  end
+
+  return did_expand, context
+end
+
 function Input:_handle_expansion(args)
   if Utils.is_func(args.leaf.handle_expansion) then
     args.leaf.handle_expansion(args)
@@ -144,6 +166,7 @@ function Input:_make_event_args(char, context)
   return {
     char = char,
     context = context,
+    lang = api.nvim_buf_get_option(self.bufnr, "ft"),
     bufnr = self.bufnr,
     input = self
   }
@@ -178,8 +201,7 @@ function Input:_expand_context(context, char, queue)
           char = char,
           cursor = Utils.get_cursor(),
           context = context,
-          bufnr = self.bufnr
-        }
+          bufnr = self.bufnr}
 
         queue:add(function(_args) self:_handle_expansion(_args) end, {args})
 
@@ -214,8 +236,27 @@ function Input:_handle_wildcard_expansion(args)
   local row, col = unpack(args.cursor)
   local line = table.concat(api.nvim_buf_get_lines(args.bufnr, row, row + 1, false), "")
   local start_row, start_col, end_row, end_col = unpack(args.context.range:range())
+
+  -- Determine if we need to fill in any closing characters for the opener.
+  -- For example, if we triggered the expansion without entering in a character (through a keybinding),
+  -- then we need to see if we need to insert any closers "<di|v" -> "<div></div>"
+  local closing_opener_chars = {}
+  local before_end = Utils.get_surrounding_chars(args.bufnr, {end_row, end_col}, #args.leaf.next_chars, 0)
+  local char_index = #args.leaf.next_chars
+
+  for index = #args.leaf.next_chars, 1, -1 do
+    local expected_char = args.leaf.next_chars[index]
+    local actual_char = string.sub(before_end, index, index)
+
+    if expected_char == actual_char then
+      break
+    end
+
+    table.insert(closing_opener_chars, 1, expected_char)
+  end
+
   local start_offset = #args.leaf.prev_chars
-  local end_offset = #args.leaf.next_chars
+  local end_offset = #args.leaf.next_chars - #closing_opener_chars
   local line_end_col = #line - #args.leaf.next_chars
   local content_lines = Utils.get_content_from_range(args.bufnr, {start_row, start_col + start_offset, end_row, end_col - end_offset})
   local content = table.concat(content_lines, "")
@@ -226,8 +267,13 @@ function Input:_handle_wildcard_expansion(args)
 
   vim.schedule(function()
     api.nvim_win_set_cursor(0, {end_row + 1, end_col})
+
+    if #closing_opener_chars > 0 then
+      Edit.insert(table.concat(closing_opener_chars))
+    end
+
     Edit.insert(tail_prefix .. wild_content .. tail_suffix)
-    api.nvim_win_set_cursor(0, {end_row + 1, end_col - 1})
+    api.nvim_win_set_cursor(0, {end_row + 1, end_col + #closing_opener_chars})
   end)
 end
 
@@ -238,24 +284,6 @@ function Input:_handle_simple_expansion(args)
   Edit.delete(range[4] - range[2])
   Edit.insert(args.leaf.open .. args.leaf.close)
   Edit.left(#args.leaf.close)
-end
-
-function Input:_expand_wildcard(args)
-  local row, col = unpack(Utils.get_cursor())
-  local line = api.nvim_buf_get_lines(args.bufnr, row, row + 1, false)[1] or ""
-  local content_to_cursor = string.sub(line, args.wildcard_start + 1, col)
-  local wild_content = Config.resolve_capture(args.wildcard.capture_content, content_to_cursor)
-  local prefix = table.concat(args.wildcard.prev_chars)
-  local suffix = table.concat(args.wildcard.next_chars)
-  local tail_prefix, tail_suffix = string.match(args.wildcard.close, "(.*)*(.*)")
-  local begin_col = args.wildcard_start - #args.wildcard.prev_chars
-
-  vim.schedule(function()
-    api.nvim_win_set_cursor(0, {row + 1, begin_col})
-    Edit.delete(#args.wildcard.prev_chars + #content_to_cursor + #args.wildcard.next_chars - 1)
-    Edit.insert(prefix .. content_to_cursor .. suffix .. tail_prefix .. wild_content .. tail_suffix)
-    Edit.left(#tail_suffix + #wild_content + #tail_prefix)
-  end)
 end
 
 return Input

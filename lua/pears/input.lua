@@ -15,6 +15,8 @@ function Input.new(bufnr, pear_tree, opts)
     bufnr = bufnr,
     tree = pear_tree,
     contexts = {},
+    lang = opts.lang,
+    current_lang = api.nvim_buf_get_option(bufnr, "filetype"),
     pending_stack = {},
     expanded_contexts = {},
     closeable_contexts = Utils.KeyMap.new() }
@@ -37,6 +39,11 @@ function Input:reset()
   self:clear_contexts()
 end
 
+function Input:set_tree(tree)
+  self:reset()
+  self.tree = tree
+end
+
 function Input:_destroy_context(context)
   self.contexts[context.id] = nil
   context:destroy()
@@ -56,15 +63,6 @@ function Input:expand(char, queue)
   end
 
   return false
-end
-
-function Input:_pop_pending()
-  local context = self.pending_stack[1]
-
-  if context then
-    self:_destroy_context(context)
-    table.remove(self.pending_stack, 1)
-  end
 end
 
 function Input:_input(char)
@@ -176,7 +174,9 @@ function Input:_expand_context(context, char, queue)
   local args = self:_make_event_args(char, context)
   local leaf = context.leaf
 
-  if leaf and Config.resolve_matcher_event(leaf.expand_when, args, true) then
+  if not leaf then return false end
+
+  if Config.resolve_matcher_event(leaf.expand_when, args, true) then
     local expanded = false
     local should_expand = true
 

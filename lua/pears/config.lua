@@ -20,35 +20,57 @@ function M.normalize_pair(key, value)
   entry.close = entry.close or ""
   entry.should_expand = entry.should_expand or function() return true end
   entry.close_key = M.get_escaped_key(entry.close)
+  entry.should_include = M.make_lang_inclusion_fn(entry.filetypes)
 
   return entry
 end
 
-function M.should_include(value, arg)
-  if Utils.is_table(arg) then
-    -- inclusion and exclusion tables
-    -- { includes = {'ruby'}, excludes = {'kotlin'} }
-    if vim.tbl_islist(arg.include) or vim.tbl_islist(arg.exclude) then
-      if vim.tbl_islist(arg.exclude) and vim.tbl_contains(arg.exclude, value) then
-        return false
+function M.make_lang_inclusion_fn(include_arg)
+  local excluded = {}
+  local included = {}
+  -- We want to do as much work as configuration time as possible since the
+  -- resuling function will be called frequently on insert enter.
+
+  if Utils.is_table(include_arg) then
+    if vim.tbl_islist(include_arg.include) or vim.tbl_islist(include_arg.exclude) then
+      if vim.tbl_islist(include_arg.include) then
+        for _, lang in ipairs(include_arg.include) do
+          included[lang] = true
+        end
       end
 
-      if vim.tbl_islist(arg.include) and not vim.tbl_contains(arg.include, value) then
-        return false
+      if vim.tbl_islist(include_arg.exclude) then
+        for _, lang in ipairs(include_arg.exclude) do
+          excluded[lang] = true
+        end
       end
-    end
-
-    -- Value is a list
-    if vim.tbl_islist(arg) and not vim.tbl_contains(arg, value) then
-      return false
+    elseif vim.tbl_islist(include_arg) then
+      for _, lang in ipairs(include_arg) do
+        included[lang] = true
+      end
     end
   end
 
-  if Utils.is_func(arg) then
-    return arg(value)
+  local has_excludes = not vim.tbl_isempty(excluded)
+  local has_includes = not vim.tbl_isempty(included)
+
+  if has_excludes then
+    if has_includes then
+      return function(lang)
+        return excluded[lang] ~= true and included[lang] == true
+      end
+    end
+
+    return function(lang)
+      return excluded[lang] ~= true
+    end
+  elseif has_includes then
+    return function(lang)
+      return included[lang] == true
+    end
   end
 
-  return nil
+  return function() return true end
 end
 
 function M.resolve_matcher_event(fn_or_string, args, default_value)
@@ -153,7 +175,6 @@ function M.get_default_config()
     })
     c.pair("`", "`")
     c.pair("```", "```")
-    c.preset "tag_matching"
 
     c.remove_pair_on_outer_backspace(true)
     c.remove_pair_on_inner_backspace(true)

@@ -1,7 +1,7 @@
 # pears.nvim
 Auto pair plugin for neovim
 
-This is still very much a work in progress... I would recommend not using it. At the time of writing this plugin is less than 48 hours old.
+This is still very much a work in progress... APIs may break at various times. Features you would expect may still in development.
 
 Features
 --------
@@ -134,13 +134,6 @@ interface PearsConfig {
 
   // Whether to bind <CR> to expand pairs
   expand_on_enter(enable: boolean): void;
-
-  // Pairs to include or exclude at a global level.
-  // This will not be called if `setup_buf_pairs` is called with a CallableList
-  // as it's first argument.
-  // This will override filetype configuration for a pair.
-  // If you need filetype specific pair logic then use a `setup_buf_pairs`
-  pair_inclusion(pairs: CallableList<string>);
 }
 
 interface PearsPairConfig {
@@ -195,18 +188,6 @@ lua require "pears".setup_buf_pairs(function(opener)
 end)
 ```
 
-### Globally
-
-You can add a hook to determine which pairs to use (this overwrites file type specifics unless `nil` is returned)
-
-```lua
-require "pears".setup(function(conf)
-  conf.pair_inclusion(function(opener)
-    return opener == "{"
-  end)
-end)
-```
-
 Wildcard expansion (experimental)
 ---------------------------------
 
@@ -220,28 +201,7 @@ local cool = <div|
 local cool = <div>|</div>
 ```
 
-```lua
-require "pears".setup(function(conf
-  conf.pair("<*>", {
-    close = "</*>",
-    filetypes = {
-      include = {
-        "javascript",
-        "typescript",
-        "javascriptreact",
-        "typescriptreact",
-        "php",
-        "jsx",
-        "tsx",
-        "html",
-        "xml"}},
-    -- Valid chars that can be use in place of "*" in the pair
-    -- If a character does not match this, then the pair will be expanded.
-    -- This can be a pattern or a function
-    valid_content = "[a-zA-Z_%-]"
-  })
-end)
-```
+For an example, take a look at the `tag_matching` preset.
 
 Only one wildcard may appear in a wildcard pair at a time.
 Carriage return behavior in wildcard pairs is still under development.

@@ -11,9 +11,7 @@ function PairContext.new(branch, range, bufnr)
     bufnr = bufnr,
     trie = nil,
     branch = branch,
-    -- wildcard = branch.wildcard,
     leaf = branch.leaf,
-    -- wildcard_start = nil,
     range = MarkedRange.new(bufnr, range),
     chars = {}
   }
@@ -21,7 +19,7 @@ function PairContext.new(branch, range, bufnr)
   return setmetatable(self, {__index = PairContext})
 end
 
-function PairContext:step_forward(char, col)
+function PairContext:step_forward(char)
   local key = PearTree.make_key(char)
 
   if self.branch.branches and self.branch.branches[key] then
@@ -43,7 +41,7 @@ function PairContext:step_forward(char, col)
   return {did_step = false, done = true}
 end
 
-function PairContext:step_backward(col)
+function PairContext:step_backward()
   if self.branch and self.branch.parent and not self:at_start() then
     table.remove(self.chars)
     self.branch = self.branch.parent
@@ -58,18 +56,6 @@ end
 function PairContext:at_start()
   return self.branch == self.top_branch
 end
-
--- function PairContext:get_current_leaf()
---   if self.branch and self.branch.leaf then
---     return self.branch.leaf
---   end
-
---   if self.wildcard then
---     return self.wildcard
---   end
-
---   return nil
--- end
 
 function PairContext:destroy()
   self.range:unmark()
@@ -87,18 +73,6 @@ function PairContext:_get_nearest_wildcard()
   end
 
   return (current and current.wildcard) or nil
-end
-
-function PairContext:_check_wildcard(col)
-  local wildcard = self:_get_nearest_wildcard()
-
-  if wildcard then
-    self.wildcard = wildcard
-    self.wildcard_start = col
-  else
-    self.wildcard = nil
-    self.wildcard_start = nil
-  end
 end
 
 return PairContext

@@ -4,6 +4,7 @@ local Utils = require "pears.utils"
 local Edit = require "pears.edit"
 local PearTree = require "pears.pear_tree"
 local Input = require "pears.input"
+local Lang = require "pears.lang"
 local api = vim.api
 
 local M = {}
@@ -13,6 +14,7 @@ M.inputs_by_buf = Utils.make_buf_table(function(input)
   input:reset()
 end)
 M.trees_by_buf = Utils.make_buf_table()
+M.state_by_buf = Utils.make_buf_table()
 
 function M.setup(config_handler)
   M.config = Config.make_user_config(config_handler)
@@ -52,8 +54,9 @@ function M.attach(bufnr)
       {silent = true})
   end
 
-  vim.cmd(string.format([[au FileType <buffer=%d> lua require("pears").setup_buf_pairs(nil, {bufnr = %d})]], bufnr, bufnr))
+  -- vim.cmd(string.format([[au FileType <buffer=%d> lua require("pears").setup_buf_pairs(nil, {bufnr = %d})]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertLeave <buffer=%d> lua require("pears").on_insert_leave(%d)]], bufnr, bufnr))
+  vim.cmd(string.format([[au InsertEnter <buffer=%d> lua require("pears").on_insert_enter(%d)]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertCharPre <buffer=%d> call luaeval("require('pears').handle_input(%d, _A)", v:char)]], bufnr, bufnr))
 end
 
@@ -138,6 +141,24 @@ function M.on_insert_leave(bufnr)
   input:reset()
 end
 
+-- Note, this MAY cause performance issues if the trie pair tree
+-- generation takes to long. So far it has not caused any issues.
+-- This also is the event that detects what language we are in.
+-- One known issue with this is if you have cross language boundaries
+-- within the same insert mode session. Re-evaluate this IF it becomes a problem.
+-- We would just need to switch which event triggers the generation.
+function M.on_insert_enter(bufnr)
+  local current_lang = Lang.get_current_lang(bufnr)
+  local state = M.state_by_buf[bufnr]
+
+  -- No need to regenerate if the lang hasn't changed.
+  if not state or current_lang ~= state.lang then
+    local pairs = state and state.pairs or nil
+
+    M.setup_buf_pairs(pairs, { lang = current_lang, bufnr = bufnr })
+  end
+end
+
 function M.handle_input(bufnr, char)
   local _, input = M.get_buf_tree(bufnr)
 
@@ -164,35 +185,32 @@ function M.setup_buf_pairs(_pairs, opts)
   opts = opts or {}
 
   local bufnr = opts.bufnr or api.nvim_get_current_buf()
-  local ft = opts.ft or api.nvim_buf_get_option(bufnr, 'ft')
+  local lang = opts.lang or api.nvim_buf_get_option(bufnr, 'ft')
   local included_pairs = {}
+  local _, input = M.get_buf_tree(bufnr)
 
-  if opts.skip_on_exist then
-    local existing_tree = M.get_buf_tree(bufnr)
+  if input then
+    if opts.skip_on_exist then
+      return
+    end
 
-    if existing_tree then return end
+    input:reset()
   end
 
   for key, pair in pairs(M.config.pairs) do
-    local include = Config.should_include(pair.open, _pairs)
-
-    if include == nil then
-      include = Config.should_include(pair.open, M.pair_inclusion)
-    end
-
-    if include == nil then
-      include = Config.should_include(ft, pair.filetypes)
-    end
-
-    if include == nil or include then
+    if pair.should_include(lang) then
       included_pairs[key] = pair
     end
   end
 
   local pear_tree = PearTree.new(included_pairs)
 
+  M.state_by_buf[bufnr] = {
+    pairs = _pairs,
+    lang = lang
+  }
   M.trees_by_buf[bufnr] = pear_tree
-  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree, {})
+  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree)
 end
 
 return M

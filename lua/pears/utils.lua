@@ -219,4 +219,48 @@ function M.get_content_from_range(bufnr, range)
   return lines
 end
 
+-- Reverse a string while keeping escape sequences in place.
+function M.reverse_str(str)
+  local i = 1
+  local result = ""
+
+  while i <= #str do
+    local char = string.sub(str, i, i)
+    local peek_char = string.sub(str, i + 1, i + 1)
+
+    if char == "\\" and peek_char then
+      i = i + 1
+      result = "\\" .. peek_char .. result
+    else
+      result = char .. result
+    end
+
+    i = i + 1
+  end
+
+  return result
+end
+
+-- Strip escape sequences from a string.
+function M.strip_escapes(str)
+  local i = 1
+  local result = ""
+
+  while i <= #str do
+    local char = string.sub(str, i, i)
+    local peek_char = string.sub(str, i + 1, i + 1)
+
+    if char == "\\" and peek_char then
+      result = result .. peek_char
+      i = i + 1
+    else
+      result = result .. char
+    end
+
+    i = i + 1
+  end
+
+  return result
+end
+
 return M

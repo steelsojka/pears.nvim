@@ -270,7 +270,7 @@ function Input:_handle_wildcard_expansion(args)
   local wild_content = Config.resolve_capture(args.leaf.capture_content, content)
   local prefix = table.concat(args.leaf.prev_chars)
   local suffix = table.concat(args.leaf.next_chars)
-  local tail_prefix, tail_suffix = string.match(args.leaf.close, "(.*)*(.*)")
+  local tail_prefix, tail_suffix = string.match(args.leaf.unescaped_close, "(.*)*(.*)")
 
   api.nvim_win_set_cursor(0, {end_row + 1, end_col})
 
@@ -287,8 +287,8 @@ function Input:_handle_simple_expansion(args)
 
   api.nvim_win_set_cursor(0, {range[1] + 1, range[2]})
   Edit.delete(range[4] - range[2])
-  Edit.insert(args.leaf.open .. args.leaf.close)
-  Edit.left(#args.leaf.close)
+  Edit.insert(args.leaf.unescaped_open .. args.leaf.unescaped_close)
+  Edit.left(#args.leaf.unescaped_close)
 end
 
 return Input

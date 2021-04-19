@@ -139,13 +139,13 @@ function PearTree:from_config(pair_config_map)
     return item.open
   end)
   self.reverse_openers = Trie.new(pair_config_map, function(item)
-    return string.reverse(item.open)
+    return Utils.reverse_str(item.open)
   end)
   self.closers = Trie.new(pair_config_map, function(item)
     return item.close
   end)
   self.reverse_closers = Trie.new(pair_config_map, function(item)
-    return string.reverse(item.close)
+    return Utils.reverse_str(item.close)
   end)
 
   self.max_opener_len = self.openers.max_len

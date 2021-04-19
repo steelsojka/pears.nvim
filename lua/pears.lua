@@ -155,7 +155,7 @@ function M.on_insert_enter(bufnr)
   if not state or current_lang ~= state.lang then
     local pairs = state and state.pairs or nil
 
-    M.setup_buf_pairs(pairs, { lang = current_lang, bufnr = bufnr })
+    M.setup_buf_pairs(pairs, {lang = current_lang, bufnr = bufnr})
   end
 end
 

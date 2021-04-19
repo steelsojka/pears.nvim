@@ -17,7 +17,9 @@ function M.normalize_pair(key, value)
   entry.key = M.get_escaped_key(key)
   entry.handle_return = entry.handle_return or Edit.return_and_indent
   entry.open = entry.open or key
+  entry.unescaped_open = Utils.strip_escapes(entry.open)
   entry.close = entry.close or ""
+  entry.unescaped_close = Utils.strip_escapes(entry.close)
   entry.should_expand = entry.should_expand or function() return true end
   entry.close_key = M.get_escaped_key(entry.close)
   entry.should_include = M.make_lang_inclusion_fn(entry.filetypes)

@@ -18,7 +18,9 @@ return function(conf, opts)
     capture_content = "^[a-zA-Z_\\-]+",
     expand_when = "[>]",
     should_expand = function(args)
-      local before = Utils.get_surrounding_chars(args.bufnr, args.context.range:end_(), 1)
+      local end_row, end_col = unpack(args.context.range:end_())
+      -- Don't include the closing ">"
+      local before = Utils.get_surrounding_chars(args.bufnr, {end_row, end_col - 1}, 1)
       local _, opening_chars = Utils.get_surrounding_chars(args.bufnr, args.context.range:start(), 2)
 
       -- Don't expand for self closing tags <input type="text" />

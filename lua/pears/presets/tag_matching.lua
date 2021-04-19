@@ -13,7 +13,8 @@ return function(conf, opts)
         "jsx",
         "tsx",
         "html",
-        "xml"}},
+        "xml",
+        "markdown"}},
     capture_content = "^[a-zA-Z_\\-]+",
     expand_when = "[>]",
     should_expand = function(args)

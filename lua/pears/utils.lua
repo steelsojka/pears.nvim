@@ -88,8 +88,8 @@ function M.pull(list, item, comparer)
   return removed
 end
 
-function M.has_leading_alpha(bufnr)
-  local before = M.get_surrounding_chars(bufnr, nil, 1)
+function M.has_leading_alpha(bufnr, position)
+  local before = M.get_surrounding_chars(bufnr, position, 1)
 
   return string.match(before, "[a-zA-Z]")
 end
@@ -186,33 +186,6 @@ end
 
 function M.KeyMap:get(key)
   return self.items[key]
-end
-
-function M.KeyMap:iter()
-  local current_list
-  local current_item
-  local list_index = next(self.items)
-  local item_index
-
-  function iter()
-    local list = self.items[list_index]
-
-    if list then
-      item_index = next(list, item_index)
-
-      if item_index and list[item_index] then
-        return list[item_index]
-      else
-        list_index = next(self.items, list_index)
-
-        return iter()
-      end
-    end
-
-    return nil
-  end
-
-  return iter
 end
 
 function M.KeyMap:reset()

@@ -170,7 +170,7 @@ function M.get_default_config()
     c.pair("'", {
       close = "'",
       should_expand = function(args)
-        return not Utils.has_leading_alpha(args.bufnr)
+        return not Utils.has_leading_alpha(args.bufnr, args.context.range:start())
       end
     })
     c.pair("`", "`")

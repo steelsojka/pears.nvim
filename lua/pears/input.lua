@@ -19,7 +19,7 @@ function Input.new(bufnr, pear_tree, opts)
     current_lang = api.nvim_buf_get_option(bufnr, "filetype"),
     pending_stack = {},
     expanded_contexts = {},
-    closeable_contexts = Utils.KeyMap.new() }
+    closeable_contexts = Utils.KeyMap.new()}
 
   return setmetatable(self, {__index = Input})
 end
@@ -49,11 +49,11 @@ function Input:_destroy_context(context)
   context:destroy()
 end
 
-function Input:expand(char, queue)
+function Input:expand(char)
   local pending = self.pending_stack[1]
 
   if pending then
-    local did_expand = self:_expand_context(pending, char, queue)
+    local did_expand = self:_expand_context(pending, char)
 
     if did_expand then
       return true, pending
@@ -67,60 +67,69 @@ end
 
 function Input:_input(char)
   local key = PearTree.make_key(char)
-  local row, col = unpack(Utils.get_cursor())
-  local queue = Edit.Queue.new(true)
   local did_close_context = false
   local current_context
 
   if self.closeable_contexts:get(key) then
+    local row, col = unpack(Utils.get_cursor())
+
     for _, closeable_context in ipairs(self.closeable_contexts:get(key)) do
-      local _, end_col = unpack(closeable_context.range:end_())
+      local end_row, end_col = unpack(closeable_context.range:end_())
 
       -- End of context "test|"
-      if col == end_col - 1 then
+      if col == end_col - 1 and row == end_row then
         -- Move cursor right "test"|
         -- This will still move the current pending context forward.
         Edit.prevent_input()
-        queue:add(Edit.right)
+        vim.schedule(Edit.right)
         did_close_context = true
         break
       end
     end
   end
 
-  local pop_count = 0
-  local did_step = false
+  -- Scheduling this will allow for the character to get inserted.
+  -- This means indentation will be applied prior to us computed expansion.
+  vim.schedule(function()
+    local pop_count = 0
+    local did_step = false
+    local row, col = unpack(Utils.get_cursor())
 
-  for _, context in ipairs(self.pending_stack) do
-    local step_result = context:step_forward(char)
-
-    if step_result.did_step or not step_result.done then
-      did_step = step_result.did_step
-      current_context = context
-      break
-    else
-      pop_count = pop_count + 1
+    -- We moved forward, so move the cursor forward one.
+    if did_close_context then
+      col = col + 1
     end
-  end
 
-  for i = 1, pop_count, 1 do
-    table.remove(self.pending_stack, 1)
-  end
+    for _, context in ipairs(self.pending_stack) do
+      local step_result = context:step_forward(char, {row, col})
 
-  if not did_step and not did_close_context then
-    if self.tree.openers.branches[key] then
-      -- We started a new pair context
-      local new_context = PairContext.new(self.tree.openers, {row, col, row, col + 1}, self.bufnr)
-
-      self.contexts[new_context.id] = new_context
-      table.insert(self.pending_stack, 1, new_context)
-      new_context:step_forward(char)
-      queue:add(function() new_context.range:mark() end)
+      if step_result.did_step or not step_result.done then
+        did_step = step_result.did_step
+        current_context = context
+        break
+      else
+        pop_count = pop_count + 1
+      end
     end
-  end
 
-  self:expand(char, queue)
-  queue:execute()
+    for i = 1, pop_count, 1 do
+      table.remove(self.pending_stack, 1)
+    end
+
+    if not did_step and not did_close_context then
+      if self.tree.openers.branches[key] then
+        -- We started a new pair context
+        local new_context = PairContext.new(self.tree.openers, {row, col - 1, row, col}, self.bufnr)
+
+        self.contexts[new_context.id] = new_context
+        table.insert(self.pending_stack, 1, new_context)
+        new_context:step_forward(char, {row, col})
+        new_context.range:mark()
+      end
+    end
+
+    self:expand(char)
+  end)
 end
 
 function Input:expand_wildcard()
@@ -129,8 +138,7 @@ function Input:expand_wildcard()
   end, self.pending_stack)
 
   if next_wildcard then
-    local queue = Edit.Queue.new(true)
-    local did_expand, context = self:expand(nil, queue)
+    local did_expand, context = self:expand(nil)
 
     if did_expand
       and context
@@ -140,7 +148,6 @@ function Input:expand_wildcard()
     then
       table.remove(self.pending_stack, 1)
     end
-    queue:execute()
   end
 
   return did_expand, context
@@ -170,7 +177,7 @@ function Input:_make_event_args(char, context)
   }
 end
 
-function Input:_expand_context(context, char, queue)
+function Input:_expand_context(context, char)
   local args = self:_make_event_args(char, context)
   local leaf = context.leaf
 
@@ -203,7 +210,7 @@ function Input:_expand_context(context, char, queue)
           context = context,
           bufnr = self.bufnr}
 
-        queue:add(function(_args) self:_handle_expansion(_args) end, {args})
+        self:_handle_expansion(args)
 
         if #leaf.close == 1 then
           self.closeable_contexts:set(leaf.close_key, context)
@@ -265,16 +272,14 @@ function Input:_handle_wildcard_expansion(args)
   local suffix = table.concat(args.leaf.next_chars)
   local tail_prefix, tail_suffix = string.match(args.leaf.close, "(.*)*(.*)")
 
-  vim.schedule(function()
-    api.nvim_win_set_cursor(0, {end_row + 1, end_col})
+  api.nvim_win_set_cursor(0, {end_row + 1, end_col})
 
-    if #closing_opener_chars > 0 then
-      Edit.insert(table.concat(closing_opener_chars))
-    end
+  if #closing_opener_chars > 0 then
+    Edit.insert(table.concat(closing_opener_chars))
+  end
 
-    Edit.insert(tail_prefix .. wild_content .. tail_suffix)
-    api.nvim_win_set_cursor(0, {end_row + 1, end_col + #closing_opener_chars})
-  end)
+  Edit.insert(tail_prefix .. wild_content .. tail_suffix)
+  api.nvim_win_set_cursor(0, {end_row + 1, end_col + #closing_opener_chars})
 end
 
 function Input:_handle_simple_expansion(args)

@@ -19,11 +19,21 @@ function PairContext.new(branch, range, bufnr)
   return setmetatable(self, {__index = PairContext})
 end
 
-function PairContext:step_forward(char)
+function PairContext:_check_next_position(char, position)
+  local last_char = self.chars[#self.chars]
+
+  if not last_char then return true end
+
+  local row, col = unpack(last_char.position)
+
+  return position[1] == row and position[2] == col + 1
+end
+
+function PairContext:step_forward(char, position)
   local key = PearTree.make_key(char)
 
-  if self.branch.branches and self.branch.branches[key] then
-    table.insert(self.chars, char)
+  if self.branch.branches and self.branch.branches[key] and self:_check_next_position(char, position) then
+    table.insert(self.chars, {char = char, position = position})
     self.branch = self.branch.branches[key]
     self.leaf = self.branch.leaf or self.branch.wildcard
 

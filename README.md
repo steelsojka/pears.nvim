@@ -149,7 +149,10 @@ interface PearsPairConfig {
   close: string;
 
   // Whether the pair should expand or not. Use to add custom behavior to a pair
-  should_expand?: (bufnr: number) => boolean;
+  should_expand?: (args: RuleArg) => boolean;
+
+  // Whether the pair should perform <CR> behavior. Use to add custom behavior to a pair
+  should_return?: (args: RuleArg) => boolean;
 
   // A function to handle <CR> when the cursor is placed inside an empty pair
   // Default behavior is <CR><C-c>O
@@ -158,6 +161,16 @@ interface PearsPairConfig {
   // Includes and excludes for this specific pair by filetype.
   // This will be ignored if `setup_buf_pairs` is called with a pairs param.
   filetypes?: CallableList<string>;
+}
+
+interface RuleArg {
+  char: string | nil;
+  context: Context | nil;
+  leaf: PearsPairConfig;
+  lang: string;
+  cursor: [number, number];
+  bufnr: number;
+  input: Input;
 }
 ```
 
@@ -196,8 +209,8 @@ lua require "pears".setup_buf_pairs(function(opener)
 end)
 ```
 
-Wildcard expansion (experimental)
----------------------------------
+Wildcard expansion
+------------------
 
 You can use pears to produce matching html tags or any matching content. Here is a sample configuration for matching html tags.
 
@@ -219,5 +232,40 @@ You can also enable this using the preset.
 ```lua
 require "pears".setup(function(conf
   conf.preset "tag_matching"
+end)
+```
+
+Rules
+-----
+
+pears uses several hooks to define how a specific pear should behave. These hooks can be set using rules, which in the end are just functions. A rule api is provided, and used internally, to make this enjoyable to write. Here is an example.
+
+```lua
+local R = require "pairs.rule"
+
+require "pears".setup(function(conf)
+  conf.pair("'", {
+    close = "'",
+    -- Don't expand a quote if it comes after an alpha character
+    should_expand = R.not_(R.start_of_context "[a-zA-Z]")
+  })
+end)
+```
+
+We could also add a rule to only expand this within a treesitter "string" node.
+
+```lua
+local R = require "pairs.rule"
+
+require "pears".setup(function(conf)
+  conf.pair("'", {
+    close = "'",
+    should_expand = R.all_of(
+      -- Don't expand a quote if it comes after an alpha character
+      R.not_(R.start_of_context "[a-zA-Z]")
+      -- Only expand when in a treesitter "string" node
+      R.child_of_node "string"
+    )
+  })
 end)
 ```

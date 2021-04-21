@@ -182,7 +182,7 @@ function M.get_default_config()
     c.pair("'''", "'''")
     c.pair("'", {
       close = "'",
-      should_expand = R.not_(R.end_of_context "[a-zA-Z]")
+      should_expand = R.not_(R.start_of_context "[a-zA-Z]")
     })
     c.pair("`", "`")
     c.pair("```", "```")

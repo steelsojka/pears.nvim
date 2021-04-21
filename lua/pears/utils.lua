@@ -278,7 +278,6 @@ end
 function M.match(str, pattern_or_list)
   if M.is_table(pattern_or_list) then
     for _, pattern in ipairs(pattern_or_list) do
-      print(pattern, str)
       if not string.match(str, pattern) then
         return false
       end

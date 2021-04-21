@@ -5,6 +5,7 @@ local Edit = require "pears.edit"
 local PearTree = require "pears.pear_tree"
 local Input = require "pears.input"
 local Lang = require "pears.lang"
+local R = require "pears.rule"
 local api = vim.api
 
 local M = {}
@@ -114,16 +115,24 @@ end
 function M._handle_return(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
+  local _, input = M.get_buf_tree(bufnr)
   local before = Utils.get_surrounding_chars(bufnr)
 
-  if before then
+  if before and input then
     local key = Config.get_escaped_key(before)
     local leaf = M.config.pairs[key]
 
     if leaf then
       local _, after = Utils.get_surrounding_chars(bufnr, nil, #leaf.close)
+      local event = {
+        leaf = leaf,
+        input = input,
+        lang = input.lang,
+        bufnr = bufnr,
+        cursor = Utils.get_cursor()
+      }
 
-      if after == leaf.close then
+      if after == leaf.close and R.pass(leaf.should_return(event)) then
         leaf.handle_return(bufnr)
         return
       end
@@ -210,7 +219,7 @@ function M.setup_buf_pairs(_pairs, opts)
     lang = lang
   }
   M.trees_by_buf[bufnr] = pear_tree
-  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree)
+  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree, { lang = lang })
 end
 
 return M

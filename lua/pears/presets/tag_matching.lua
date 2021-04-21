@@ -1,4 +1,5 @@
 local Utils = require "pears.utils"
+local R = require "pears.rule"
 
 return function(conf, opts)
   conf.pair("<*>", {
@@ -16,26 +17,21 @@ return function(conf, opts)
         "xml",
         "markdown"}},
     capture_content = "^[a-zA-Z_\\-]+",
-    expand_when = "[>]",
-    should_expand = function(args)
-      local end_row, end_col = unpack(args.context.range:end_())
-      -- Don't include the closing ">"
-      local before = Utils.get_surrounding_chars(args.bufnr, {end_row, end_col - 1}, 1)
-      local _, opening_chars = Utils.get_surrounding_chars(args.bufnr, args.context.range:start(), 2)
-
+    expand_when = R.char "[>]",
+    should_expand = R.all_of(
       -- Don't expand for self closing tags <input type="text" />
+      R.not_(R.end_of_context "[/]"),
       -- Don't expand if we made a closing tag </div>
       -- Don't expand if we made have a space after the opening angle 1 < 3
-      local should_expand = before ~= "/" and not string.match(opening_chars, "<[/ ]")
-
+      R.not_(R.start_of_context "<[/ ]"),
+      -- Don't expand inside strings
+      R.when(
+        function() return not opts.expand_in_strings end,
+        R.not_(R.child_of_node {"string"})),
       -- Don't expand when there is a preceding character "SomeClass<T> (only for tsx)"
-      if should_expand and string.match(args.lang, "(typescript|tsx)") then
-        local before_context = Utils.get_surrounding_chars(args.bufnr, args.context.range:start())
-
-        should_expand = not string.match(before_context, "[a-zA-Z0-9]")
-      end
-
-      return should_expand
-    end})
+      R.when(
+        R.lang {"typescript", "tsx"},
+        R.not_(R.start_of_context "[a-zA-Z0-9]")),
+      -- An additional rule that a user can add on.
+      opts.should_expand or R.T)})
 end
-

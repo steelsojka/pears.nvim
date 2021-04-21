@@ -4,6 +4,8 @@ local Edit = require "pears.edit"
 local Config = require "pears.config"
 local PairContext = require "pears.pair_context"
 local MarkedRange = require "pears.marked_range"
+local R = require "pears.rule"
+local ts = require "vim.treesitter"
 local api = vim.api
 
 local Input = {}
@@ -16,10 +18,15 @@ function Input.new(bufnr, pear_tree, opts)
     tree = pear_tree,
     contexts = {},
     lang = opts.lang,
-    current_lang = api.nvim_buf_get_option(bufnr, "filetype"),
     pending_stack = {},
     expanded_contexts = {},
     closeable_contexts = Utils.KeyMap.new()}
+
+  local success, parser = pcall(ts.get_parser, bufnr)
+
+  if success then
+    self.ts_parser = parser
+  end
 
   return setmetatable(self, {__index = Input})
 end
@@ -167,27 +174,30 @@ function Input:_handle_expansion(args)
   end
 end
 
-function Input:_make_event_args(char, context)
+function Input:_make_event_args(char, context, leaf)
   return {
     char = char,
     context = context,
-    lang = api.nvim_buf_get_option(self.bufnr, "ft"),
+    leaf = leaf,
+    lang = self.lang,
+    cursor = Utils.get_cursor(),
     bufnr = self.bufnr,
     input = self
   }
 end
 
 function Input:_expand_context(context, char)
-  local args = self:_make_event_args(char, context)
   local leaf = context.leaf
 
   if not leaf then return false end
 
-  if Config.resolve_matcher_event(leaf.expand_when, args, true) then
+  local event = self:_make_event_args(char, context, leaf)
+
+  if R.pass(leaf.expand_when(event)) then
     local expanded = false
     local should_expand = true
 
-    if leaf.should_expand(args) then
+    if R.pass(leaf.should_expand(event)) then
       if leaf.is_wildcard then
         local row, col = unpack(Utils.get_cursor())
         local expanded_context = self:_get_context_at_position(self.expanded_contexts, {row, col + 1})
@@ -202,15 +212,7 @@ function Input:_expand_context(context, char)
       end
 
       if should_expand then
-        local args = {
-          input = self,
-          leaf = leaf,
-          char = char,
-          cursor = Utils.get_cursor(),
-          context = context,
-          bufnr = self.bufnr}
-
-        self:_handle_expansion(args)
+        self:_handle_expansion(event)
 
         if #leaf.close == 1 then
           self.closeable_contexts:set(leaf.close_key, context)

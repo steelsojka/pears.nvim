@@ -28,18 +28,30 @@ function M.is_in_range(row, col, range)
     and (row < end_row or (row == end_row and col <= end_col))
 end
 
+function M.split_line_at(bufnr, position)
+  position = position or M.get_cursor()
+
+  local row, col = unpack(position)
+  local line = api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
+
+  if line then
+    local before = string.sub(line, 1, math.max(0, col))
+    local after = string.sub(line, col + 1)
+
+    return before, after, position
+  end
+end
+
 function M.get_surrounding_chars(bufnr, position, lead_count, tail_count)
   lead_count = lead_count or 1
   tail_count = tail_count or lead_count
 
-  local row, col = unpack(position or M.get_cursor())
-  local line = api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
+  local before, after, split_pos = M.split_line_at(bufnr, position)
 
-  if line then
-    local before = string.sub(line, math.max(col - lead_count + 1, 0), col)
-    local after = string.sub(line, col + 1, math.min(col + tail_count, #line + 1))
-
-    return before, after
+  if before and after then
+    return
+      string.sub(before, #before - lead_count + 1),
+      string.sub(after, 1, tail_count)
   end
 end
 
@@ -261,6 +273,21 @@ function M.strip_escapes(str)
   end
 
   return result
+end
+
+function M.match(str, pattern_or_list)
+  if M.is_table(pattern_or_list) then
+    for _, pattern in ipairs(pattern_or_list) do
+      print(pattern, str)
+      if not string.match(str, pattern) then
+        return false
+      end
+    end
+  elseif M.is_string(pattern_or_list) then
+    return string.match(str, pattern_or_list)
+  end
+
+  return true
 end
 
 return M

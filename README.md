@@ -78,6 +78,14 @@ local cool = <!---->|
 local cool = |
 ```
 
+### Speed
+
+pears.nvim is lightning fast and doesn't slow down input at all!
+
+### Treesitter language support
+
+Detects language based off of the treesitter language at the cursor. This will fallback to `ft` if there is no treesitter parser.
+
 Install
 -------
 

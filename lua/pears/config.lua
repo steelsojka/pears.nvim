@@ -1,5 +1,6 @@
 local Utils = require "pears.utils"
 local Edit = require "pears.edit"
+local R = require "pears.rule"
 
 local M = {}
 
@@ -20,9 +21,11 @@ function M.normalize_pair(key, value)
   entry.unescaped_open = Utils.strip_escapes(entry.open)
   entry.close = entry.close or ""
   entry.unescaped_close = Utils.strip_escapes(entry.close)
-  entry.should_expand = entry.should_expand or function() return true end
   entry.close_key = M.get_escaped_key(entry.close)
   entry.should_include = M.make_lang_inclusion_fn(entry.filetypes)
+  entry.should_expand = entry.should_expand or R.T
+  entry.should_return = entry.should_return or R.T
+  entry.expand_when = entry.expand_when or R.T
 
   return entry
 end
@@ -131,13 +134,21 @@ function M.exec_config_handler(handler, config)
         end
       end,
       preset = function(name, opts)
+        local error
+
         for _, path in ipairs(config.preset_paths) do
           local success, preset = pcall(require, path.. "." ..name)
 
-          if success and Utils.is_func(preset) then
+          if success then
             preset(conf, opts or {})
             break
+          else
+            error = preset
           end
+        end
+
+        if error then
+          vim.api.nvim_err_writeln("pears -> " .. error)
         end
       end,
       add_preset_path = function(path)
@@ -171,9 +182,7 @@ function M.get_default_config()
     c.pair("'''", "'''")
     c.pair("'", {
       close = "'",
-      should_expand = function(args)
-        return not Utils.has_leading_alpha(args.bufnr, args.context.range:start())
-      end
+      should_expand = R.not_(R.end_of_context "[a-zA-Z]")
     })
     c.pair("`", "`")
     c.pair("```", "```")

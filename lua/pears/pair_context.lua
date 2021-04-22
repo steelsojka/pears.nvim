@@ -19,21 +19,34 @@ function PairContext.new(branch, range, bufnr)
   return setmetatable(self, {__index = PairContext})
 end
 
-function PairContext:_check_next_position(char, position)
-  local last_char = self.chars[#self.chars]
-
-  if not last_char then return true end
-
-  local row, col = unpack(last_char.position)
-
-  return position[1] == row and position[2] == col + 1
+function PairContext:get_text()
+  return self.range:is_marked() and Utils.get_content_from_range(self.bufnr, self.range:range()) or nil
 end
 
-function PairContext:step_forward(char, position)
+function PairContext:_check_previous_chars(char)
+  local range_text = self:get_text()
+
+  if range_text then
+    range_text = table.concat(range_text, "\n")
+
+    for i, last_char in ipairs(self.chars) do
+      local char_index = #range_text - i + 1
+      local actual_char = string.sub(range_text, char_index, char_index)
+
+      if actual_char ~= last_char then
+        return false
+      end
+    end
+  end
+
+  return true
+end
+
+function PairContext:step_forward(char)
   local key = PearTree.make_key(char)
 
-  if self.branch.branches and self.branch.branches[key] and self:_check_next_position(char, position) then
-    table.insert(self.chars, {char = char, position = position})
+  if self.branch.branches and self.branch.branches[key] and self:_check_previous_chars(char) then
+    table.insert(self.chars, char)
     self.branch = self.branch.branches[key]
     self.leaf = self.branch.leaf or self.branch.wildcard
 

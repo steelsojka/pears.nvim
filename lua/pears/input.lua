@@ -75,7 +75,6 @@ end
 function Input:_input(char)
   local key = PearTree.make_key(char)
   local did_close_context = false
-  local current_context
 
   if self.closeable_contexts:get(key) then
     local row, col = unpack(Utils.get_cursor())
@@ -95,44 +94,51 @@ function Input:_input(char)
     end
   end
 
-  -- Scheduling this will allow for the character to get inserted.
-  -- This means indentation will be applied prior to us computed expansion.
+  local pop_count = 0
+  local did_step = false
+  local insert_char = false
+  local should_create_context = false
+
+  for _, context in ipairs(self.pending_stack) do
+    local step_result = context:step_forward(char)
+
+    if step_result.did_step or not step_result.done then
+      did_step = step_result.did_step
+      insert_char = true
+      Edit.prevent_input()
+      break
+    else
+      pop_count = pop_count + 1
+    end
+  end
+
+  for i = 1, pop_count, 1 do
+    table.remove(self.pending_stack, 1)
+  end
+
+  if not did_step and not did_close_context then
+    if self.tree.openers.branches[key] then
+      insert_char = true
+      Edit.prevent_input()
+      should_create_context = true
+    end
+  end
+
   vim.schedule(function()
-    local pop_count = 0
-    local did_step = false
+    if insert_char and not did_close_context then
+      Edit.insert(char)
+    end
+
     local row, col = unpack(Utils.get_cursor())
 
-    -- We moved forward, so move the cursor forward one.
-    if did_close_context then
-      col = col + 1
-    end
+    if should_create_context then
+      -- We started a new pair context
+      local new_context = PairContext.new(self.tree.openers, {row, col - 1, row, col}, self.bufnr)
 
-    for _, context in ipairs(self.pending_stack) do
-      local step_result = context:step_forward(char, {row, col})
-
-      if step_result.did_step or not step_result.done then
-        did_step = step_result.did_step
-        current_context = context
-        break
-      else
-        pop_count = pop_count + 1
-      end
-    end
-
-    for i = 1, pop_count, 1 do
-      table.remove(self.pending_stack, 1)
-    end
-
-    if not did_step and not did_close_context then
-      if self.tree.openers.branches[key] then
-        -- We started a new pair context
-        local new_context = PairContext.new(self.tree.openers, {row, col - 1, row, col}, self.bufnr)
-
-        self.contexts[new_context.id] = new_context
-        table.insert(self.pending_stack, 1, new_context)
-        new_context:step_forward(char, {row, col})
-        new_context.range:mark()
-      end
+      self.contexts[new_context.id] = new_context
+      table.insert(self.pending_stack, 1, new_context)
+      new_context:step_forward(char)
+      new_context.range:mark()
     end
 
     self:expand(char)

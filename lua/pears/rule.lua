@@ -4,18 +4,48 @@ local Rule = {}
 
 Rule.SKIP = "__SKIP__"
 
+local function pattern_to_list(pattern, at_start, args)
+  local resolved_pattern
+
+  if Utils.is_func(pattern) then
+    resolved_pattern = pattern(args)
+  else
+    resolved_pattern = pattern
+  end
+
+  if Utils.is_string(resolved_pattern) then
+    resolved_pattern = {resolved_pattern}
+  end
+
+  local patterns = {}
+
+  for _, pat in ipairs(resolved_pattern) do
+    table.insert(patterns, at_start and ("^" .. pat) or (pat .. "$"))
+  end
+
+  return patterns
+end
+
 local function make_check(opts)
   return function(pattern)
-    pattern = opts.at_start and ("^" .. pattern) or (pattern .. "$")
+    local is_dynamic_pattern = Utils.is_func(pattern)
+
+    if not is_dynamic_pattern then
+      pattern = pattern_to_list(pattern, opts.at_start)
+    end
 
     return function(args)
-      local row, col = unpack(opts.get_pos(args))
-      local before, after = Utils.split_line_at(args.bufnr, {row, col - 1})
+      local resolved_pattern = is_dynamic_pattern
+        and pattern_to_list(pattern, opts.at_start, args)
+        or pattern
+
+      local before, after = Utils.split_line_at(args.bufnr, opts.get_pos(args))
       local text = opts.text_before and before or after
       local result = false
 
       if text then
-        result = Utils.match(text, pattern)
+        Utils.log(text, resolved_pattern)
+        result = Utils.match(text, resolved_pattern)
       end
 
       return result
@@ -25,13 +55,32 @@ end
 
 Rule.end_of_context = make_check {
   text_before = true,
-  get_pos = function(args) return args.context.range:end_() end
+  get_pos = function(args)
+    return Utils.shift_pos_back(args.context.range:end_(), 1)
+  end
 }
 
 Rule.start_of_context = make_check {
   at_start = true,
-  get_pos = function(args) return args.context.range:start() end
+  get_pos = function(args)
+    return Utils.shift_pos_back(args.context.range:start(), 1)
+  end
 }
+
+Rule.match_next = make_check {
+  at_start = true,
+  get_pos = function(args) return args.cursor end
+}
+
+Rule.match_prev = make_check {
+  get_pos = function(args) return args.cursor end
+}
+
+Rule.match_closer = function()
+  return Rule.match_next(function(args)
+    return args.leaf.closer.chars
+  end)
+end
 
 function Rule.all_of(...)
   local rules = {...}

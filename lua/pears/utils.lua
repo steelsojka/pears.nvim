@@ -289,4 +289,10 @@ function M.match(str, pattern_or_list)
   return true
 end
 
+function M.shift_pos_back(pos, amount)
+  local row, col = unpack(pos)
+
+  return {row, math.max(0, col - amount)}
+end
+
 return M

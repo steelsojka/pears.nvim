@@ -1,6 +1,7 @@
 local Utils = require "pears.utils"
 local Edit = require "pears.edit"
 local R = require "pears.rule"
+local Parser = require "pears.parser"
 
 local M = {}
 
@@ -17,15 +18,20 @@ function M.normalize_pair(key, value)
 
   entry.key = M.get_escaped_key(key)
   entry.handle_return = entry.handle_return or Edit.return_and_indent
-  entry.open = entry.open or key
-  entry.unescaped_open = Utils.strip_escapes(entry.open)
-  entry.close = entry.close or ""
-  entry.unescaped_close = Utils.strip_escapes(entry.close)
-  entry.close_key = M.get_escaped_key(entry.close)
+  entry.opener = Parser.parse(entry.open or key)
+  entry.closer = Parser.parse(entry.close or "")
+
+  do
+    local first_close_char = string.sub(entry.closer.chars, 1, 1)
+    entry.close_key = first_close_char and M.get_escaped_key(first_close_char) or nil
+  end
+
   entry.should_include = M.make_lang_inclusion_fn(entry.filetypes)
   entry.should_expand = entry.should_expand or R.T
   entry.should_return = entry.should_return or R.T
   entry.expand_when = entry.expand_when or R.T
+  entry.should_move_right = entry.should_move_right or R.match_closer()
+  entry.is_wildcard = entry.opener.is_wildcard
 
   return entry
 end
@@ -180,6 +186,7 @@ function M.get_default_config()
     c.pair("\"", "\"")
     c.pair("\"\"\"", "\"\"\"")
     c.pair("'''", "'''")
+    c.pair("<!--", "-->")
     c.pair("'", {
       close = "'",
       should_expand = R.not_(R.start_of_context "[a-zA-Z]")

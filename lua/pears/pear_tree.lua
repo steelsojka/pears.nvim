@@ -1,10 +1,11 @@
 local Utils = require "pears.utils"
+local Parser = require "pears.parser"
 
 local PearTree = {}
 local Trie = {}
 
-function Trie.new(dictionary, get_key)
-  local self = setmetatable({get_key = get_key, unpack(Trie.new_branch())}, {__index = Trie})
+function Trie.new(dictionary, get_iter)
+  local self = setmetatable({get_iter = get_iter, unpack(Trie.new_branch())}, {__index = Trie})
 
   self.branches, self.max_len = self:make(dictionary)
 
@@ -67,52 +68,34 @@ function Trie:make(dictionary)
   local max_len = 0
 
   for _, value in pairs(dictionary) do
-    value = vim.tbl_extend("force", {}, value)
-
     local current_list = branches
     local current_branch
-    local key_string = self.get_key(value)
     local len = 0
-    local is_escaped = false
-    local is_wildcard = false
-    local wildcard = nil
-    local prev_chars = {}
+    local iter = self.get_iter(value)
 
-    for char in string.gmatch(key_string, ".") do
-      if char == "\\" and not is_escaped then
-        is_escaped = true
+    local current_node = iter()
+
+    while current_node do
+      local key = Trie.make_key(current_node.char)
+
+      len = len + 1
+
+      if current_node.is_wildcard then
+        current_branch.wildcard = value
       else
-        local key = Trie.make_key(char)
-
-        len = len + 1
-
-        if char == "*" and not is_escaped then
-          current_branch.wildcard = value
-          wildcard = value
-          wildcard.is_wildcard = true
-          wildcard.next_chars = {}
-          wildcard.prev_chars = {unpack(prev_chars)}
-          is_wildcard = true
-        else
-          if not current_list[key] then
-            current_list[key] = Trie.new_branch(char, current_branch, is_wildcard)
-          end
-
-          if wildcard then
-            table.insert(wildcard.next_chars, char)
-          end
-
-          if len > max_len then
-            max_len = len
-          end
-
-          current_branch = current_list[key]
-          current_list = current_branch.branches
-          table.insert(prev_chars, char)
+        if not current_list[key] then
+          current_list[key] = Trie.new_branch(current_node.char, current_branch, is_wildcard)
         end
 
-        is_escaped = false
+        if len > max_len then
+          max_len = len
+        end
+
+        current_branch = current_list[key]
+        current_list = current_branch.branches
       end
+
+      current_node = iter()
     end
 
     if current_branch then
@@ -136,16 +119,16 @@ PearTree.make_char = Trie.make_char
 
 function PearTree:from_config(pair_config_map)
   self.openers = Trie.new(pair_config_map, function(item)
-    return item.open
+    return Parser.walk_down(item.opener.ast)
   end)
   self.reverse_openers = Trie.new(pair_config_map, function(item)
-    return Utils.reverse_str(item.open)
+    return Parser.walk_up(Parser.get_tail(item.opener.ast))
   end)
   self.closers = Trie.new(pair_config_map, function(item)
-    return item.close
+    return Parser.walk_down(item.closer.ast)
   end)
   self.reverse_closers = Trie.new(pair_config_map, function(item)
-    return Utils.reverse_str(item.close)
+    return Parser.walk_up(Parser.get_tail(item.closer.ast))
   end)
 
   self.max_opener_len = self.openers.max_len

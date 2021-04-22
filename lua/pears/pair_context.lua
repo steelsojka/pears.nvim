@@ -13,6 +13,7 @@ function PairContext.new(branch, range, bufnr)
     branch = branch,
     leaf = branch.leaf,
     range = MarkedRange.new(bufnr, range),
+    expansions = {},
     chars = {}
   }
 
@@ -70,6 +71,16 @@ function PairContext:step_backward()
     self.branch = self.branch.parent
     self.leaf = self.branch.leaf or self:_get_nearest_wildcard()
   end
+end
+
+function PairContext:tag_expansion()
+  if self.leaf then
+    table.insert(self.expansions, self.leaf)
+  end
+end
+
+function PairContext:get_last_expansion()
+  return self.expansions[#self.expansions]
 end
 
 function PairContext:at_end()

@@ -71,8 +71,8 @@ function M.handle_backspace(bufnr)
       -- Remove the enclosed pair
       -- {|} -> |
       if open_leaf and close_leaf and M.config.remove_pair_on_inner_backspace then
-        Edit.backspace(#open_leaf.open)
-        Edit.delete(#close_leaf.close)
+        Edit.backspace(#open_leaf.opener.chars)
+        Edit.delete(#close_leaf.closer.chars)
         input:reset()
 
         return
@@ -89,7 +89,7 @@ function M.handle_backspace(bufnr)
         -- NOTE: Does not support nested pairs
         -- {}| -> |
         if open_leaf and close_leaf and #close_leaf.close == i then
-          Edit.backspace(#open_leaf.open + #close_leaf.close)
+          Edit.backspace(#open_leaf.opener.chars + #close_leaf.closer.chars)
           input:reset()
 
           return
@@ -219,7 +219,7 @@ function M.setup_buf_pairs(_pairs, opts)
     lang = lang
   }
   M.trees_by_buf[bufnr] = pear_tree
-  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree, { lang = lang })
+  M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree, {lang = lang})
 end
 
 return M

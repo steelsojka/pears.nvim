@@ -81,16 +81,25 @@ function Input:_input(char)
 
     for _, closeable_context in ipairs(self.closeable_contexts:get(key)) do
       local end_row, end_col = unpack(closeable_context.range:end_())
+      local leaf = closeable_context:get_last_expansion()
 
-      -- End of context "test|"
-      if col == end_col - 1 and row == end_row then
-        -- Move cursor right "test"|
-        -- This will still move the current pending context forward.
-        Edit.prevent_input()
-        vim.schedule(Edit.right)
-        did_close_context = true
-        break
+      if leaf
+        and closeable_context.range:is_in_range(row, col)
+        and R.pass(
+          leaf.should_move_right(
+            self:_make_event_args(char, closeable_context, leaf)))
+      then
+        -- End of context "test|"
+        -- if col == end_col - 1 and row == end_row then
+          -- Move cursor right "test"|
+          -- This will still move the current pending context forward.
+          Edit.prevent_input()
+          vim.schedule(Edit.right)
+          did_close_context = true
+          break
+        -- end
       end
+
     end
   end
 
@@ -145,26 +154,26 @@ function Input:_input(char)
   end)
 end
 
-function Input:expand_wildcard()
-  local next_wildcard, index = Utils.find(function(context)
-    return context.is_wildcard
-  end, self.pending_stack)
+-- function Input:expand_wildcard()
+--   local next_wildcard, index = Utils.find(function(context)
+--     return context.is_wildcard
+--   end, self.pending_stack)
 
-  if next_wildcard then
-    local did_expand, context = self:expand(nil)
+--   if next_wildcard then
+--     local did_expand, context = self:expand(nil)
 
-    if did_expand
-      and context
-      and context.leaf
-      and context.leaf.is_wildcard
-      and context == self.pending_stack[1]
-    then
-      table.remove(self.pending_stack, 1)
-    end
-  end
+--     if did_expand
+--       and context
+--       and context.leaf
+--       and context.leaf.is_wildcard
+--       and context == self.pending_stack[1]
+--     then
+--       table.remove(self.pending_stack, 1)
+--     end
+--   end
 
-  return did_expand, context
-end
+--   return did_expand, context
+-- end
 
 function Input:_handle_expansion(args)
   if Utils.is_func(args.leaf.handle_expansion) then
@@ -220,9 +229,8 @@ function Input:_expand_context(context, char)
       if should_expand then
         self:_handle_expansion(event)
 
-        if #leaf.close == 1 then
-          self.closeable_contexts:set(leaf.close_key, context)
-        end
+        self.closeable_contexts:set(leaf.close_key, context)
+        context:tag_expansion()
 
         self.expanded_contexts[context.id] = context
         expanded = true
@@ -256,11 +264,11 @@ function Input:_handle_wildcard_expansion(args)
   -- For example, if we triggered the expansion without entering in a character (through a keybinding),
   -- then we need to see if we need to insert any closers "<di|v" -> "<div></div>"
   local closing_opener_chars = {}
-  local before_end = Utils.get_surrounding_chars(args.bufnr, {end_row, end_col}, #args.leaf.next_chars, 0)
-  local char_index = #args.leaf.next_chars
+  local before_end = Utils.get_surrounding_chars(args.bufnr, {end_row, end_col}, #args.leaf.opener.wildcard_closer, 0)
+  local char_index = #args.leaf.opener.wildcard_closer
 
-  for index = #args.leaf.next_chars, 1, -1 do
-    local expected_char = args.leaf.next_chars[index]
+  for index = #args.leaf.opener.wildcard_closer, 1, -1 do
+    local expected_char = string.sub(args.leaf.opener.wildcard_closer, index, index)
     local actual_char = string.sub(before_end, index, index)
 
     if expected_char == actual_char then
@@ -270,15 +278,16 @@ function Input:_handle_wildcard_expansion(args)
     table.insert(closing_opener_chars, 1, expected_char)
   end
 
-  local start_offset = #args.leaf.prev_chars
-  local end_offset = #args.leaf.next_chars - #closing_opener_chars
-  local line_end_col = #line - #args.leaf.next_chars
+  local start_offset = #args.leaf.opener.wildcard_opener
+  local end_offset = #args.leaf.opener.wildcard_closer - #closing_opener_chars
+  local line_end_col = #line - #args.leaf.opener.wildcard_closer
   local content_lines = Utils.get_content_from_range(args.bufnr, {start_row, start_col + start_offset, end_row, end_col - end_offset})
   local content = table.concat(content_lines, "")
   local wild_content = Config.resolve_capture(args.leaf.capture_content, content)
-  local prefix = table.concat(args.leaf.prev_chars)
-  local suffix = table.concat(args.leaf.next_chars)
-  local tail_prefix, tail_suffix = string.match(args.leaf.unescaped_close, "(.*)*(.*)")
+  local prefix = args.leaf.opener.wildcard_opener
+  local suffix = args.leaf.opener.wildcard_closer
+  local tail_prefix = args.leaf.closer.wildcard_opener
+  local tail_suffix = args.leaf.closer.wildcard_closer
 
   api.nvim_win_set_cursor(0, {end_row + 1, end_col})
 
@@ -295,8 +304,8 @@ function Input:_handle_simple_expansion(args)
 
   api.nvim_win_set_cursor(0, {range[1] + 1, range[2]})
   Edit.delete(range[4] - range[2])
-  Edit.insert(args.leaf.unescaped_open .. args.leaf.unescaped_close)
-  Edit.left(#args.leaf.unescaped_close)
+  Edit.insert(args.leaf.opener.chars .. args.leaf.closer.chars)
+  Edit.left(#args.leaf.closer.chars)
 end
 
 return Input

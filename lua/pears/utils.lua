@@ -84,6 +84,8 @@ end
 function M.pull(list, item, comparer)
   local index
 
+  comparer = comparer or function(a, b) return a == b end
+
   for i, list_item in ipairs(list) do
     if comparer(list_item, item) then
       index = i

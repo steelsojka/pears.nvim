@@ -157,26 +157,15 @@ function Input:_input(char)
   end)
 end
 
--- function Input:expand_wildcard()
---   local next_wildcard, index = Utils.find(function(context)
---     return context.is_wildcard
---   end, self.pending_stack)
+function Input:expand_wildcard()
+  local next_context = Utils.find(function(context)
+    return context.leaf and context.leaf.is_wildcard
+  end, self.pending_stack)
 
---   if next_wildcard then
---     local did_expand, context = self:expand(nil)
-
---     if did_expand
---       and context
---       and context.leaf
---       and context.leaf.is_wildcard
---       and context == self.pending_stack[1]
---     then
---       table.remove(self.pending_stack, 1)
---     end
---   end
-
---   return did_expand, context
--- end
+  if next_context then
+    return self:_expand_context(next_context, nil)
+  end
+end
 
 function Input:_handle_expansion(args)
   if Utils.is_func(args.leaf.handle_expansion) then
@@ -211,12 +200,13 @@ function Input:_expand_context(context, char)
 
   local event = self:_make_event_args(char, context, leaf)
 
-  if R.pass(leaf.expand_when(event)) then
+  if not char or R.pass(leaf.expand_when(event)) then
     local expanded = false
-    local should_expand = true
 
     if R.pass(leaf.should_expand(event)) then
-      if leaf.is_wildcard then
+      -- Only do this check if entering in a char. If we explicily want to expand
+      -- this context then we don't care what context it is in.
+      if leaf.is_wildcard and char then
         local row, col = unpack(Utils.get_cursor())
         local expanded_context = self:_get_context_at_position(self.expanded_contexts, {row, col + 1})
 
@@ -229,19 +219,19 @@ function Input:_expand_context(context, char)
         end
       end
 
-      if should_expand then
-        self:_handle_expansion(event)
+      self:_handle_expansion(event)
 
-        self.closeable_contexts:set(leaf.close_key, context)
-        context:tag_expansion()
+      self.closeable_contexts:set(leaf.close_key, context)
+      context:tag_expansion()
 
-        self.expanded_contexts[context.id] = context
-        expanded = true
-      end
+      self.expanded_contexts[context.id] = context
+      expanded = true
     end
 
-    if context:at_end() then
-      table.remove(self.pending_stack, 1)
+    -- If we are at the end of the context or we expanded a wildcard then remove it from
+    -- the stack.
+    if context:at_end() or leaf.is_wildcard then
+      Utils.pull(self.pending_stack, context)
     end
 
     return expanded

@@ -1,7 +1,7 @@
 # pears.nvim
 Auto pair plugin for neovim
 
-This is still very much a work in progress... APIs may break at various times. Features you would expect may still in development.
+This is still very much a work in progress... APIs may break at various times.
 
 Features
 --------
@@ -247,6 +247,18 @@ You can also enable this using the preset.
 require "pears".setup(function(conf
   conf.preset "tag_matching"
 end)
+```
+
+You can bind the expansion to a certain key if you want to expand a wildcard before the terminating condition.
+
+```vim
+inoremap <silent> <C-l> lua require "pears".expand()
+```
+
+```lua
+<div class="test|"
+-- press <C-l>
+<div class="test">|</div>
 ```
 
 Rules

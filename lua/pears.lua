@@ -64,7 +64,6 @@ function M.attach(bufnr)
       {silent = true})
   end
 
-  -- vim.cmd(string.format([[au FileType <buffer=%d> lua require("pears").setup_buf_pairs(nil, {bufnr = %d})]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertLeave <buffer=%d> lua require("pears").on_insert_leave(%d)]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertEnter <buffer=%d> lua require("pears").on_insert_enter(%d)]], bufnr, bufnr))
   vim.cmd(string.format([[au InsertCharPre <buffer=%d> call luaeval("require('pears').handle_input(%d, _A)", v:char)]], bufnr, bufnr))

@@ -32,6 +32,15 @@ end
 function M.attach(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
+  -- Global filetype disabled list
+  if Utils.is_table(M.config.disabled_filetypes)
+    and vim.tbl_contains(
+      M.config.disabled_filetypes,
+      api.nvim_buf_get_option "filetype")
+  then
+    return
+  end
+
   if M.is_attached(bufnr) then
     return
   end

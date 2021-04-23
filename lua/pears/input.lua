@@ -75,6 +75,7 @@ end
 function Input:_input(char)
   local key = PearTree.make_key(char)
   local did_close_context = false
+  local step_chars = char
 
   if self.closeable_contexts:get(key) then
     local row, col = unpack(Utils.get_cursor())
@@ -89,15 +90,17 @@ function Input:_input(char)
           leaf.should_move_right(
             self:_make_event_args(char, closeable_context, leaf)))
       then
+
         -- End of context "test|"
-        -- if col == end_col - 1 and row == end_row then
-          -- Move cursor right "test"|
-          -- This will still move the current pending context forward.
-          Edit.prevent_input()
-          vim.schedule(Edit.right)
-          did_close_context = true
-          break
-        -- end
+        -- Move cursor right "test"|
+        -- This will still move the current pending context forward.
+        step_chars = leaf.closer.chars
+        Edit.prevent_input()
+        vim.schedule(function()
+          Edit.right(#leaf.closer.chars)
+        end)
+        did_close_context = true
+        break
       end
 
     end
@@ -109,7 +112,7 @@ function Input:_input(char)
   local should_create_context = false
 
   for _, context in ipairs(self.pending_stack) do
-    local step_result = context:step_forward(char)
+    local step_result = context:step_forward(step_chars)
 
     if step_result.did_step or not step_result.done then
       did_step = step_result.did_step
@@ -135,7 +138,7 @@ function Input:_input(char)
 
   vim.schedule(function()
     if insert_char and not did_close_context then
-      Edit.insert(char)
+      Edit.insert(step_chars)
     end
 
     local row, col = unpack(Utils.get_cursor())
@@ -146,7 +149,7 @@ function Input:_input(char)
 
       self.contexts[new_context.id] = new_context
       table.insert(self.pending_stack, 1, new_context)
-      new_context:step_forward(char)
+      new_context:step_forward(step_chars)
       new_context.range:mark()
     end
 

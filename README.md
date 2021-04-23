@@ -9,31 +9,25 @@ Features
 ### Auto pairs
 
 ```lua
-local cool = |
-
+|
 -- type {
-
-local cool = {|}
+{|}
 ```
 
 ### Multibyte auto pairs
 
 ```lua
-local cool = |
-
+|
 -- type <!--
-
-local cool = <!--|-->
+<!--|-->
 ```
 
-### <CR> expansion
+### Return expansion
 
 ```lua
-local cool = {|}
-
+{|}
 -- type <CR>
-
-local cool = {
+{
   |
 }
 ```
@@ -41,41 +35,53 @@ local cool = {
 ### Remove empty pairs (inside)
 
 ```lua
-local cool = {|}
-
+{|}
 -- type <BS>
-
-local cool = |
+|
 ```
 
 ### Remove empty pairs (outer)
 
 ```lua
-local cool = {}|
-
+{}|
 -- type <BS>
-
-local cool = |
+|
 ```
 
 ### Remove empty multibyte pairs (inside)
 
 ```lua
-local cool = <!--|-->
-
+<!--|-->
 -- type <BS>
-
-local cool = |
+|
 ```
 
 ### Remove empty multibyte pairs (outer)
 
 ```lua
-local cool = <!---->|
-
+<!---->|
 -- type <BS>
+|
+```
 
-local cool = |
+### Move past closed pairs
+
+```lua
+|
+-- type {
+{|}
+-- type }
+{}|
+```
+
+### Move past closed multibyte pairs
+
+```lua
+|
+-- type <!--
+<!--|-->
+-- type -
+<!---->|
 ```
 
 ### Speed
@@ -85,6 +91,8 @@ pears.nvim is lightning fast and doesn't slow down input at all!
 ### Treesitter language support
 
 Detects language based off of the treesitter language at the cursor. This will fallback to `ft` if there is no treesitter parser.
+
+* For rules that use treesitter (child_of_node), `nvim-treesitter` is required, but for basic injected language support it is not required.
 
 Install
 -------
@@ -142,6 +150,9 @@ interface PearsConfig {
 
   // Whether to bind <CR> to expand pairs
   expand_on_enter(enable: boolean): void;
+
+  // A list of filetypes to never attach it to, basically not including this plugin at all.
+  disabled_filetypes(filetypes: string[]): void;
 }
 
 interface PearsPairConfig {
@@ -153,6 +164,9 @@ interface PearsPairConfig {
 
   // Whether the pair should perform <CR> behavior. Use to add custom behavior to a pair
   should_return?: (args: RuleArg) => boolean;
+
+  // Whether when entering a closing pair char the cursor should move past the closing char or insert a new char
+  should_move_right?: (args: RuleArg) => boolean;
 
   // A function to handle <CR> when the cursor is placed inside an empty pair
   // Default behavior is <CR><C-c>O
@@ -215,17 +229,17 @@ Wildcard expansion
 You can use pears to produce matching html tags or any matching content. Here is a sample configuration for matching html tags.
 
 ```lua
-local cool = <div|
+<div|
 
 -- type > or any non valid character
 
-local cool = <div>|</div>
+<div>|</div>
 ```
 
 For an example, take a look at the `tag_matching` preset.
 
-Only one wildcard may appear in a wildcard pair at a time.
-Carriage return behavior in wildcard pairs is still under development.
+* Only one wildcard may appear in a wildcard pair at a time.
+* Carriage return behavior in wildcard pairs is still under development.
 
 You can also enable this using the preset.
 

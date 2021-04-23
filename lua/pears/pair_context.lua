@@ -44,26 +44,38 @@ function PairContext:_check_previous_chars(char)
   return true
 end
 
-function PairContext:step_forward(char)
-  local key = PearTree.make_key(char)
+function PairContext:step_forward(chars)
+  local did_step = false
+  local done = true
 
-  if self.branch.branches and self.branch.branches[key] and self:_check_previous_chars(char) then
-    table.insert(self.chars, char)
-    self.branch = self.branch.branches[key]
-    self.leaf = self.branch.leaf or self.branch.wildcard
+  for i = 1, #chars, 1 do
+    local char = string.sub(chars, i, i)
+    local key = PearTree.make_key(char)
 
-    return {did_step = true, done = false}
-  else
-    local wildcard = self:_get_nearest_wildcard()
+    if self.branch.branches and self.branch.branches[key] and self:_check_previous_chars(char) then
+      table.insert(self.chars, char)
+      self.branch = self.branch.branches[key]
+      self.leaf = self.branch.leaf or self.branch.wildcard
+      did_step = true
+      done = false
+    else
+      local wildcard = self:_get_nearest_wildcard()
 
-    self.leaf = wildcard
+      self.leaf = wildcard
 
-    if wildcard then
-      return {did_step = false, done = false}
+      if wildcard then
+        did_step = false
+        done = false
+      else
+        did_step = false
+        done = true
+      end
+
+      break
     end
   end
 
-  return {did_step = false, done = true}
+  return {did_step = did_step, done = done}
 end
 
 function PairContext:step_backward()

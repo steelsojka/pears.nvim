@@ -30,8 +30,9 @@ function PairContext:_check_previous_chars(char)
   if range_text then
     range_text = table.concat(range_text, "\n")
 
-    for i, last_char in ipairs(self.chars) do
-      local char_index = #range_text - i + 1
+    for i = #self.chars, 1, -1 do
+      local last_char = self.chars[i]
+      local char_index = #range_text - (#self.chars - i)
       local actual_char = string.sub(range_text, char_index, char_index)
 
       if actual_char ~= last_char then

@@ -5,7 +5,6 @@ local M = {}
 function M.parse(str)
   local current
   local root
-  local wildcard_node
   local is_escaped = false
   local has_wildcard = false
   local prev_chars = ""
@@ -25,12 +24,11 @@ function M.parse(str)
 
       if char == "*" and not is_escaped then
         node.is_wildcard = true
-        node.wildcard_opener = prev_chars
-        node.wildcard_closer = ""
+        wildcard_opener = prev_chars
+        wildcard_closer = ""
         has_wildcard = true
-        wildcard_node = node
-      elseif wildcard_node then
-        wildcard_node.wildcard_closer = wildcard_node.wildcard_closer .. char
+      elseif wildcard_closer then
+        wildcard_closer = wildcard_closer .. char
       end
 
       is_escaped = false

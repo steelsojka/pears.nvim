@@ -44,7 +44,6 @@ local function make_check(opts)
       local result = false
 
       if text then
-        Utils.log(text, resolved_pattern)
         result = Utils.match(text, resolved_pattern)
       end
 
@@ -78,7 +77,7 @@ Rule.match_prev = make_check {
 
 Rule.match_closer = function()
   return Rule.match_next(function(args)
-    return args.leaf.closer.chars
+    return Utils.escape_pattern(args.leaf.closer.chars)
   end)
 end
 

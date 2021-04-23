@@ -295,4 +295,8 @@ function M.shift_pos_back(pos, amount)
   return {row, math.max(0, col - amount)}
 end
 
+function M.escape_pattern(pattern)
+  return string.gsub(pattern, "[%^%$%(%)%%.%[%]%*%+%-%?]", "%%%0")
+end
+
 return M

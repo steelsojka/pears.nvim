@@ -245,7 +245,7 @@ For an example, take a look at the `tag_matching` preset.
 You can also enable this using the preset.
 
 ```lua
-require "pears".setup(function(conf
+require "pears".setup(function(conf)
   conf.preset "tag_matching"
 end)
 ```

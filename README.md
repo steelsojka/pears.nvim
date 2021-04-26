@@ -145,8 +145,9 @@ interface PearsConfig {
   // Enables an empty pair to be removed on backspace when the cursor at the end of the empty pair
   remove_pair_on_outer_backspace(enable: boolean): void;
 
-  // Overrides the on enter handler. Use to integrate other plugins to the <CR> key binding
-  on_enter(handler: (pear_handler: () => void) => void): void;
+  // Overrides the on enter handler. Use to integrate other plugins to the <CR> key binding.
+  // Any string returned will be fed to `feedkeys`.
+  on_enter(handler: (pear_handler: () => void) => string | nil): void;
 
   // Whether to bind <CR> to expand pairs
   expand_on_enter(enable: boolean): void;
@@ -305,7 +306,7 @@ To work with completion framesworks you can use the `on_enter` option to add cus
 require "pears".setup(function(conf)
   conf.on_enter(function(pears_handle)
     if vim.fn.pumvisible() == 1 and vim.fn.complete_info().selected ~= -1 then
-      vim.fn["compe#confirm"]("<CR>")
+      return vim.fn["compe#confirm"]("<CR>")
     else
       pears_handle()
     end

@@ -52,13 +52,12 @@ function Trie:query(chars)
   return last, index
 end
 
-function Trie.new_branch(char, parent, is_wildcard)
+function Trie.new_branch(char, parent)
   return {
     leaf = nil,
     char = char,
     wildcard = nil,
     parent = parent,
-    is_wildcard = is_wildcard,
     branches = {}
   }
 end
@@ -84,7 +83,7 @@ function Trie:make(dictionary)
         current_branch.wildcard = value
       else
         if not current_list[key] then
-          current_list[key] = Trie.new_branch(current_node.char, current_branch, is_wildcard)
+          current_list[key] = Trie.new_branch(current_node.char, current_branch)
         end
 
         if len > max_len then

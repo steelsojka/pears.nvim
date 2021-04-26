@@ -112,9 +112,13 @@ end
 
 function M.handle_return(bufnr)
   if type(M.config.on_enter) == "function" then
-    M.config.on_enter(function()
+    local keys = M.config.on_enter(function()
       M._handle_return(bufnr)
     end, Edit.enter)
+
+    if Utils.is_string(keys) then
+      api.nvim_feedkeys(keys, "n", true)
+    end
   else
     M._handle_return(bufnr)
   end

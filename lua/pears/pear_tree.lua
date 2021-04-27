@@ -13,7 +13,7 @@ function Trie.new(dictionary, get_iter)
 end
 
 function Trie.make_key(str)
-  return 'k' .. string.byte(str)
+  return "k" .. (string.byte(str) or '')
 end
 
 function Trie.make_char(key)
@@ -21,6 +21,7 @@ function Trie.make_char(key)
 end
 
 function Trie:query(chars)
+  print(chars)
   local last = nil
   local last_branch = self.branches
   local index

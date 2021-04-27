@@ -36,7 +36,7 @@ function M.attach(bufnr)
   if Utils.is_table(M.config.disabled_filetypes)
     and vim.tbl_contains(
       M.config.disabled_filetypes,
-      api.nvim_buf_get_option "filetype")
+      api.nvim_buf_get_option(bufnr, "filetype"))
   then
     return
   end

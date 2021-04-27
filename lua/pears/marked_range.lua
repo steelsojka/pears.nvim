@@ -27,11 +27,11 @@ function MarkedRange:update(range)
 end
 
 function MarkedRange:start()
-  return api.nvim_buf_get_extmark_by_id(self.bufnr, Common.namespace, self.start_mark, {})
+  return api.nvim_buf_get_extmark_by_id(self.bufnr, Common.Ns.Range, self.start_mark, {})
 end
 
 function MarkedRange:end_()
-  return api.nvim_buf_get_extmark_by_id(self.bufnr, Common.namespace, self.end_mark, {})
+  return api.nvim_buf_get_extmark_by_id(self.bufnr, Common.Ns.Range, self.end_mark, {})
 end
 
 function MarkedRange:range()
@@ -47,18 +47,18 @@ function MarkedRange:is_marked()
 end
 
 function MarkedRange:mark()
-  self.start_mark = api.nvim_buf_set_extmark(self.bufnr, Common.namespace, self._range[1], self._range[2], {
+  self.start_mark = api.nvim_buf_set_extmark(self.bufnr, Common.Ns.Range, self._range[1], self._range[2], {
     right_gravity = false
   })
-  self.end_mark = api.nvim_buf_set_extmark(self.bufnr, Common.namespace, self._range[3], self._range[4], {})
+  self.end_mark = api.nvim_buf_set_extmark(self.bufnr, Common.Ns.Range, self._range[3], self._range[4], {})
 end
 
 function MarkedRange:unmark()
   if self.end_mark then
-    api.nvim_buf_del_extmark(self.bufnr, Common.namespace, self.end_mark)
+    api.nvim_buf_del_extmark(self.bufnr, Common.Ns.Range, self.end_mark)
   end
   if self.start_mark then
-    api.nvim_buf_del_extmark(self.bufnr, Common.namespace, self.start_mark)
+    api.nvim_buf_del_extmark(self.bufnr, Common.Ns.Range, self.start_mark)
   end
 end
 

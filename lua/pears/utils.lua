@@ -115,6 +115,10 @@ function M.combine_range(start, end_)
   return {start_row, start_col, end_row, end_col}
 end
 
+function M.get_inner_range(range_a, range_b)
+  return {range_a[3], range_a[4], range_b[1], range_b[2]}
+end
+
 function M.partial(fn, ...)
   local args = {select(1, ...)}
 
@@ -233,6 +237,29 @@ function M.get_content_from_range(bufnr, range)
   return lines
 end
 
+function M.get_position_offset(start_position, position)
+  return {
+    math.max(position[1] - start_position[1], 0),
+    math.max(position[2] - start_position[2], 0)}
+end
+
+function M.get_wrapping_ranges(bufnr, row, col, range)
+  local buf_range = range or M.get_buf_range(bufnr)
+
+  return {buf_range[1], buf_range[2], row, col}, {row, col, buf_range[3], buf_range[4]}
+end
+
+function M.is_range_empty(range)
+  return range[1] == range[3] and range[2] == range[4] - 1
+end
+
+function M.get_buf_range(bufnr)
+  local lines = api.nvim_buf_get_lines(bufnr, 0, -1, true)
+  local last_line = lines[#lines]
+
+  return {0, 0, #lines, #last_line}
+end
+
 -- Reverse a string while keeping escape sequences in place.
 function M.reverse_str(str)
   local i = 1
@@ -297,8 +324,39 @@ function M.shift_pos_back(pos, amount)
   return {row, math.max(0, col - amount)}
 end
 
+function M.clone_tbl(tbl)
+  return vim.tbl_extend("force", {}, tbl)
+end
+
 function M.escape_pattern(pattern)
   return string.gsub(pattern, "[%^%$%(%)%%.%[%]%*%+%-%?]", "%%%0")
+end
+
+function M.make_range(start, end_)
+  return {start[1], start[2], end_[1], end_[2]}
+end
+
+function M.set_timeout(fn, timeout)
+  local timer = vim.loop.new_timer()
+
+  timer:start(timeout, 0, function()
+    fn()
+
+    timer:stop()
+    timer:close()
+  end)
+
+  return timer
+end
+
+function M.to_iter(list_or_func)
+  if M.is_func(list_or_func) then
+    return list_or_func
+  elseif M.is_table(list_or_func) then
+    return ipairs(list_or_func)
+  end
+
+  return M.noop
 end
 
 return M

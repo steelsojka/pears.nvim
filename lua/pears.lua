@@ -6,6 +6,9 @@ local PearTree = require "pears.pear_tree"
 local Input = require "pears.input"
 local Lang = require "pears.lang"
 local R = require "pears.rule"
+local Buffer = require "pears.buffer"
+local Ui = require "pears.ui"
+local Pointer = require "pears.pointer"
 local api = vim.api
 
 local M = {}
@@ -73,31 +76,57 @@ function M.handle_backspace(bufnr)
   local pear_tree, input = M.get_buf_tree(bufnr)
 
   if pear_tree then
+    -- Remove the enclosed pair
+    -- {|} -> |
     if M.config.remove_pair_on_inner_backspace then
-      local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr)
+      local pos = Utils.get_cursor()
+      local line = api.nvim_buf_get_lines(bufnr, pos[1], pos[1] + 1, false)[1] or ""
+      local pear = Buffer.get_containing_pair {
+        tree = pear_tree,
+        bufnr = bufnr,
+        position = pos,
+        range = {
+          pos[1],
+          math.max(pos[2] - pear_tree.reverse_openers.max_len, 0),
+          pos[1],
+          math.min(pos[2] + pear_tree.closers.max_len, #line)
+        }
+      }
 
-      -- Remove the enclosed pair
-      -- {|} -> |
-      if open_leaf and close_leaf and M.config.remove_pair_on_inner_backspace then
-        Edit.backspace(#open_leaf.opener.chars)
-        Edit.delete(#close_leaf.closer.chars)
+      if pear and Utils.is_range_empty(pear.inner_range) then
+        Edit.backspace(#pear.leaf.opener.chars)
+        Edit.delete(#pear.leaf.closer.chars)
         input:reset()
 
         return
       end
     end
 
+    -- Remove from the end of the pair
+    -- NOTE: Does not support nested pairs
+    -- {}| -> |
     if M.config.remove_pair_on_outer_backspace then
-      local cursor = Utils.get_cursor()
+      local pos = Utils.get_cursor()
+      local iter = Buffer.iter_pairs {
+        bufnr = bufnr,
+        open_trie = pear_tree.reverse_openers,
+        close_trie = pear_tree.reverse_closers,
+        direction = Pointer.Direction.Backwards,
+        range = {
+          pos[1],
+          math.max(pos[2] - 1 - (pear_tree.reverse_openers.max_len + pear_tree.reverse_closers.max_len), 0),
+          pos[1],
+          pos[2]
+        }
+      }
 
-      for i = 1, pear_tree.max_closer_len do
-        local open_leaf, close_leaf = pear_tree:get_wrapping_pair_at(bufnr, {cursor[1], cursor[2] - i})
-
-        -- Remove from the end of the pair
-        -- NOTE: Does not support nested pairs
-        -- {}| -> |
-        if open_leaf and close_leaf and #close_leaf.close == i then
-          Edit.backspace(#open_leaf.opener.chars + #close_leaf.closer.chars)
+      for _, pear in iter do
+        if pear
+          and pear.range[3] == pos[1]
+          and pear.range[4] == pos[2] - 1
+          and Utils.is_range_empty(pear.inner_range)
+        then
+          Edit.backspace(#pear.leaf.opener.chars + #pear.leaf.closer.chars)
           input:reset()
 
           return
@@ -232,6 +261,50 @@ function M.setup_buf_pairs(_pairs, opts)
   }
   M.trees_by_buf[bufnr] = pear_tree
   M.inputs_by_buf[bufnr] = Input.new(bufnr, pear_tree, {lang = lang})
+end
+
+function M.iter_buf_pairs(bufnr)
+  local tree = M.get_buf_tree(bufnr)
+
+  if not tree then return end
+
+  return Buffer.iter_pairs {
+    range = Utils.get_buf_range(bufnr),
+    bufnr = bufnr,
+    direction = Pointer.Direction.Forward,
+    open_trie = tree.openers,
+    close_trie = tree.closers
+  }
+end
+
+function M.get_containing_pair(bufnr)
+  local tree = M.get_buf_tree(bufnr)
+
+  if not tree then return end
+
+  return Buffer.get_containing_pair {
+    bufnr = bufnr,
+    tree = tree
+  }
+end
+
+function M.highlight_containing_pair(bufnr, timeout)
+  local pear = M.get_containing_pair(bufnr)
+
+  M.clear_pair_highlights(bufnr)
+
+  if pear then
+    Ui.highlight_pair_results(bufnr, {pear}, timeout)
+  end
+end
+
+function M.highlight_buf_pairs(bufnr, timeout)
+  Ui.clear_pair_highlights(bufnr)
+  Ui.highlight_pair_results(bufnr, M.iter_buf_pairs(bufnr), timeout)
+end
+
+function M.clear_pair_highlights(bufnr)
+  Ui.clear_pair_highlights(bufnr)
 end
 
 return M

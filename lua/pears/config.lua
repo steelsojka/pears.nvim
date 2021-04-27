@@ -31,6 +31,7 @@ function M.normalize_pair(key, value)
   entry.should_return = entry.should_return or R.T
   entry.expand_when = entry.expand_when or R.T
   entry.should_move_right = entry.should_move_right or R.match_closer()
+  entry.is_mirrored = key == entry.close
   entry.is_wildcard = entry.opener.is_wildcard
 
   return entry

@@ -268,7 +268,7 @@ Rules
 pears uses several hooks to define how a specific pear should behave. These hooks can be set using rules, which in the end are just functions. A rule api is provided, and used internally, to make this enjoyable to write. Here is an example.
 
 ```lua
-local R = require "pairs.rule"
+local R = require "pears.rule"
 
 require "pears".setup(function(conf)
   conf.pair("'", {
@@ -282,7 +282,7 @@ end)
 We could also add a rule to only expand this within a treesitter "string" node.
 
 ```lua
-local R = require "pairs.rule"
+local R = require "pears.rule"
 
 require "pears".setup(function(conf)
   conf.pair("'", {

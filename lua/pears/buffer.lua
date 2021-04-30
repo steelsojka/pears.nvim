@@ -23,6 +23,31 @@ local function is_leafs_balanced(stack_a, match, direction, match_closer)
   return false
 end
 
+-- Iters over pair part matches and pair matches.
+-- The iterator returns the pair part match (open/closer)
+-- and a complete pair match as the second return value (if it exists).
+--
+-- The algorithm for this is as follows.
+--
+-- * Read next character "function () {|}"
+-- * If the next character is listed an open trie or closer trie
+--   * Continue reading until we get the longest leaf value
+-- * Take then longest read value from the open or close trie
+-- * Set the pointer to the last read value "function() |{}"
+-- * If there is a matching pair on the unbalanced stack
+--   * Create a pair match and compute ranges
+--   * Remove the pair part from the stack
+--   * Return the part and pair
+-- * Else
+--   * Push the pair part onto the unbalanced stack
+--   * Compute ranges
+--   * Return the part and nil for the pair
+--
+-- @param opts.range The range of the buffer to iterate over.
+-- @param opts.bufnr The buffer.
+-- @param opts.open_trie The trie to use for opening pairs.
+-- @param opts.close_trie The trie to use for closing pairs.
+-- @param opts.direction The direction we should move over the range.
 function M.iter_pairs(opts)
   local range = opts.range
   local bufnr = opts.bufnr

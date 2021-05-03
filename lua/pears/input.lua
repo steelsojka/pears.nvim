@@ -110,9 +110,10 @@ function Input:_input(char)
   local did_step = false
   local insert_char = false
   local should_create_context = false
+  local cursor = Utils.get_cursor()
 
   for _, context in ipairs(self.pending_stack) do
-    local step_result = context:step_forward(step_chars)
+    local step_result = context:step_forward(step_chars, cursor)
 
     if step_result.did_step or not step_result.done then
       did_step = step_result.did_step

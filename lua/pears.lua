@@ -156,26 +156,33 @@ end
 function M._handle_return(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
-  local _, input = M.get_buf_tree(bufnr)
-  local before = Utils.get_surrounding_chars(bufnr)
+  local tree, input = M.get_buf_tree(bufnr)
 
-  if before and input then
-    local key = Config.get_escaped_key(before)
-    local leaf = M.config.pairs[key]
+  if input and tree then
+    local before = Buffer.get_immediate_pair {
+      trie = tree.reverse_openers,
+      bufnr = bufnr,
+      direction = Pointer.Direction.Backwards
+    }
 
-    if leaf then
-      local _, after = Utils.get_surrounding_chars(bufnr, nil, #leaf.close)
-      local event = {
-        leaf = leaf,
-        input = input,
-        lang = input.lang,
+    if before and before.leaf then
+      local after = Buffer.get_immediate_pair {
+        trie = tree.closers,
         bufnr = bufnr,
-        cursor = Utils.get_cursor()
+        direction = Pointer.Direction.Forward
       }
 
-      if after == leaf.close and R.pass(leaf.should_return(event)) then
-        leaf.handle_return(bufnr)
-        return
+      if after and after.leaf and after.leaf.key == before.leaf.key then
+        if R.pass(before.leaf.should_return {
+          leaf = before.leaf,
+          input = input,
+          lang = input.lang,
+          bufnr = bufnr,
+          cursor = Utils.get_cursor()
+        }) then
+          before.leaf.handle_return(bufnr)
+          return
+        end
       end
     end
   end

@@ -51,7 +51,6 @@ function M.match(trie, row, col, lines, direction)
           last_col = col
         elseif current.wildcard then
           last = current
-          current = nil
         end
       else
         break
@@ -88,7 +87,7 @@ function M.at_end(row, col, lines)
 end
 
 function M.lt(row_a, col_a, row_b, col_b)
-  return row_a < col_b
+  return row_a < row_b
     or (row_a == row_b and col_a < col_b)
 end
 

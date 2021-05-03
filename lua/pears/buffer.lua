@@ -287,4 +287,19 @@ function M.get_containing_pair(opts)
   return nil
 end
 
+function M.get_immediate_pair(opts)
+  local position = opts.position or Utils.get_cursor()
+  local trie = opts.trie
+  local bufnr = opts.bufnr
+  local direction = opts.direction
+  local lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local row, col = position[1], position[2]
+
+  if direction == Pointer.Direction.Backwards then
+    col = math.max(col - 1, 0)
+  end
+
+  return Pointer.match(trie, row, col, lines, direction)
+end
+
 return M

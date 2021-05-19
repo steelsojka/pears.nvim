@@ -194,7 +194,7 @@ function Rule.child_of_node(pattern_or_list, deep)
             if Utils.match(current:type(), pattern_or_list) then
               return true
             end
-            current = current.parent
+            current = current:parent()
           end
         else
           return Utils.match(node:type(), pattern_or_list)

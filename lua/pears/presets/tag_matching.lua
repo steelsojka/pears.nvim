@@ -15,7 +15,8 @@ return function(conf, opts)
         "tsx",
         "html",
         "xml",
-        "markdown"}},
+        "markdown",
+        "eruby"}},
     capture_content = "^[a-zA-Z_\\-]+",
     expand_when = R.char "[>]",
     should_expand = R.all_of(

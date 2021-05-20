@@ -17,7 +17,7 @@ return function(conf, opts)
         "xml",
         "markdown",
         "eruby"}},
-    capture_content = "^[a-zA-Z_\\-]+",
+    capture_content = "^[a-zA-Z0-9_\\-]+",
     expand_when = R.char "[>]",
     should_expand = R.all_of(
       -- Don't expand for self closing tags <input type="text" />

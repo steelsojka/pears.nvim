@@ -205,6 +205,12 @@ function Rule.child_of_node(pattern_or_list, deep)
     end)
 end
 
+function Rule.enter_pressed()
+  return function(args)
+    return args.enter_pressed
+  end
+end
+
 function Rule.pass(result)
   return result == Rule.SKIP or result
 end

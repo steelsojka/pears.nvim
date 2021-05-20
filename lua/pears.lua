@@ -172,7 +172,8 @@ function M._handle_return(bufnr)
         direction = Pointer.Direction.Forward
       }
 
-      if after and after.leaf and after.leaf.key == before.leaf.key then
+      if (after and after.leaf and after.leaf.key == before.leaf.key) or
+        (not after and input:expand(nil, true)) then
         if R.pass(before.leaf.should_return {
           leaf = before.leaf,
           input = input,

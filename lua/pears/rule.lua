@@ -85,8 +85,8 @@ function Rule.all_of(...)
   local rules = {...}
 
   return function(args)
-    for i, rule in ipairs(rules) do
-      if rule(args) == false then
+    for _, rule in ipairs(rules) do
+      if not rule(args) then
         return false
       end
     end

@@ -172,8 +172,15 @@ function M._handle_return(bufnr)
         direction = Pointer.Direction.Forward
       }
 
-      if (after and after.leaf and after.leaf.key == before.leaf.key) or
-        (not after and input:expand(nil, true)) then
+      local pair_closed = (after and after.leaf and after.leaf.key == before.leaf.key)
+
+      -- If there isn't a closing pair, try to expand to handle the case
+      -- where the pair has been configured to expand on enter.
+      if not pair_closed then
+        pair_closed = input:expand(nil, Input.VirtualKey.ENTER)
+      end
+
+      if pair_closed then
         if R.pass(before.leaf.should_return {
           leaf = before.leaf,
           input = input,

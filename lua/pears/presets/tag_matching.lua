@@ -1,7 +1,11 @@
-local Utils = require "pears.utils"
 local R = require "pears.rule"
 
 return function(conf, opts)
+  -- Default to HTML void elements, which don't require a closing tag or a trailing slash (although the trailing slash is required for valid XHTML)
+  local skip_tags = opts.skip_tags or {
+    'area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'
+  }
+
   conf.pair("<*>", {
     close = "</*>",
     filetypes = opts.filetypes or {
@@ -33,6 +37,16 @@ return function(conf, opts)
       R.when(
         R.lang {"typescript", "tsx"},
         R.not_(R.start_of_context "[a-zA-Z0-9]")),
+      -- Don't expand for tags configured to be skipped
+      R.not_(
+        R.any_of(
+          unpack(vim.tbl_map(function (tag)
+              return R.end_of_context(tag.."[^>]*")
+            end,
+            skip_tags
+          ))
+        )
+      ),
       -- An additional rule that a user can add on.
       opts.should_expand or R.T)})
 end

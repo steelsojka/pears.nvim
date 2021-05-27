@@ -2,6 +2,11 @@ local Utils = require "pears.utils"
 
 local Rule = {}
 
+Rule.VirtualKey = {
+  ENTER = "enter",
+  NONE = "__NONE__"
+}
+
 Rule.SKIP = "__SKIP__"
 
 local function pattern_to_list(pattern, at_start, args)
@@ -203,6 +208,12 @@ function Rule.child_of_node(pattern_or_list, deep)
 
       return false
     end)
+end
+
+function Rule.virtual_key(virtual_key)
+  return function(args)
+    return args.virtual_key == virtual_key
+  end
 end
 
 function Rule.pass(result)

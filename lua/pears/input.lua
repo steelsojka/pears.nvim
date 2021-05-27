@@ -10,6 +10,8 @@ local api = vim.api
 
 local Input = {}
 
+Input.VirtualKey = R.VirtualKey
+
 function Input.new(bufnr, pear_tree, opts)
   opts = opts or {}
 
@@ -56,11 +58,12 @@ function Input:_destroy_context(context)
   context:destroy()
 end
 
-function Input:expand(char)
+function Input:expand(char, virtual_key)
+  virtual_key = virtual_key or self.VirtualKey.NONE
   local pending = self.pending_stack[1]
 
   if pending then
-    local did_expand = self:_expand_context(pending, char)
+    local did_expand = self:_expand_context(pending, char, virtual_key)
 
     if did_expand then
       return true, pending
@@ -182,7 +185,7 @@ function Input:_handle_expansion(args)
   end
 end
 
-function Input:_make_event_args(char, context, leaf)
+function Input:_make_event_args(char, context, leaf, virtual_key)
   return {
     char = char,
     context = context,
@@ -190,18 +193,19 @@ function Input:_make_event_args(char, context, leaf)
     lang = self.lang,
     cursor = Utils.get_cursor(),
     bufnr = self.bufnr,
-    input = self
+    input = self,
+    virtual_key = virtual_key,
   }
 end
 
-function Input:_expand_context(context, char)
+function Input:_expand_context(context, char, virtual_key)
   local leaf = context.leaf
 
   if not leaf then return false end
 
-  local event = self:_make_event_args(char, context, leaf)
+  local event = self:_make_event_args(char, context, leaf, virtual_key)
 
-  if not char or R.pass(leaf.expand_when(event)) then
+  if (not char and not virtual_key) or R.pass(leaf.expand_when(event)) then
     local expanded = false
 
     if R.pass(leaf.should_expand(event)) then

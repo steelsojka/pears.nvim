@@ -17,6 +17,8 @@ return function(conf, opts)
         "php",
         "jsx",
         "tsx",
+        "svelte",
+        "vue",
         "html",
         "xml",
         "markdown",

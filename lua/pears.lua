@@ -35,6 +35,10 @@ end
 function M.attach(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
+  if Utils.is_func(M.config.disable) and M.config.disable(bufnr) then
+    return
+  end
+
   -- Global filetype disabled list
   if Utils.is_table(M.config.disabled_filetypes)
     and vim.tbl_contains(

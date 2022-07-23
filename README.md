@@ -154,6 +154,10 @@ interface PearsConfig {
 
   // A list of filetypes to never attach it to, basically not including this plugin at all.
   disabled_filetypes(filetypes: string[]): void;
+
+  // A function to determine whether to disable attaching to the given buffer.
+  // If the function returns `true` this plugin will be disabled for that buffer.
+  disable(func: (bufnr: number) => boolean): void;
 }
 
 interface PearsPairConfig {
